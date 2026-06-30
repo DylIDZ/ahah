@@ -2309,34 +2309,33 @@ local function teleportItemToTarget(item, targetLocation)
         local itemDrag = item:FindFirstChild("ItemDrag")
         local networkRemote = itemDrag and itemDrag:FindFirstChild("RequestNetworkOwnership")
         if itemPart and networkRemote then
-            pcall(function()
-                networkRemote:FireServer(itemPart)
-            end)
-            task.wait(0.15)
-            if item.Parent then
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            
+            for i = 1, 8 do
+                if not item or not item.Parent then break end
+                
                 pcall(function()
-                    item:PivotTo(CFrame.new(targetLocation) + Vector3.new(0, 0.5, 0))
+                    networkRemote:FireServer(itemPart)
+                end)
+                
+                local currentTarget = targetLocation
+                if i <= 2 and hrp then
+                    currentTarget = hrp.Position
+                end
+                
+                pcall(function()
+                    item:PivotTo(CFrame.new(currentTarget) + Vector3.new(0, 0.5, 0))
                     for _, part in ipairs(item:GetDescendants()) do
                         if part:IsA("BasePart") then
                             part.CanCollide = false
-                            part.AssemblyLinearVelocity = Vector3.new(0, -4, 0)
+                            part.AssemblyLinearVelocity = Vector3.new(0, -5, 0)
                             part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
                         end
                     end
                 end)
-                task.wait(0.08)
-                if item.Parent then
-                    pcall(function()
-                        item:PivotTo(CFrame.new(targetLocation) + Vector3.new(0, 0.2, 0))
-                        for _, part in ipairs(item:GetDescendants()) do
-                            if part:IsA("BasePart") then
-                                part.CanCollide = false
-                                part.AssemblyLinearVelocity = Vector3.new(0, -4, 0)
-                                part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                            end
-                        end
-                    end)
-                end
+                
+                task.wait(0.05)
             end
         end
     end)
