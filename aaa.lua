@@ -2260,6 +2260,129 @@ local function startRemoteSpy()
     end
 end
 
+local cachedGeneratorLocation = nil
+local function getGeneratorPosition()
+    if cachedGeneratorLocation then return cachedGeneratorLocation end
+    local map = workspace:FindFirstChild("Map")
+    local tiles = map and map:FindFirstChild("Tiles")
+    if tiles then
+        for _, child in ipairs(tiles:GetChildren()) do
+            if child.Name == "Generator" or child:FindFirstChild("Generator") then
+                cachedGeneratorLocation = child:GetPivot().Position
+                return cachedGeneratorLocation
+            end
+        end
+    end
+    local fallback = workspace:FindFirstChild("Generator", true)
+    if fallback then
+        cachedGeneratorLocation = fallback:GetPivot().Position
+        return cachedGeneratorLocation
+    end
+    return nil
+end
+
+local cachedShredderLocation = nil
+local function getShredderPosition()
+    if cachedShredderLocation then return cachedShredderLocation end
+    local map = workspace:FindFirstChild("Map")
+    local tiles = map and map:FindFirstChild("Tiles")
+    if tiles then
+        for _, child in ipairs(tiles:GetChildren()) do
+            if child.Name == "Shredder" or child:FindFirstChild("Shredder") then
+                cachedShredderLocation = child:GetPivot().Position
+                return cachedShredderLocation
+            end
+        end
+    end
+    local fallback = workspace:FindFirstChild("Shredder", true)
+    if fallback then
+        cachedShredderLocation = fallback:GetPivot().Position
+        return cachedShredderLocation
+    end
+    return nil
+end
+
+local function teleportItemToTarget(item, targetLocation)
+    task.spawn(function()
+        if not item or not targetLocation then return end
+        local itemPart = item:FindFirstChild("Union") or item.PrimaryPart
+        local itemDrag = item:FindFirstChild("ItemDrag")
+        local networkRemote = itemDrag and itemDrag:FindFirstChild("RequestNetworkOwnership")
+        if itemPart and networkRemote then
+            pcall(function()
+                networkRemote:FireServer(itemPart)
+            end)
+            task.wait(0.12)
+            if item.Parent then
+                pcall(function()
+                    item:PivotTo(CFrame.new(targetLocation) + Vector3.new(0, 2, 0))
+                end)
+            end
+        end
+    end)
+end
+
+local autoDeliverActive = false
+local autoDeliverThread = nil
+local autoDeliverAttempts = {}
+
+local function stopAutoDeliver()
+    autoDeliverActive = false
+    if autoDeliverThread then
+        pcall(function() task.cancel(autoDeliverThread) end)
+        autoDeliverThread = nil
+    end
+    autoDeliverAttempts = {}
+end
+
+local function startAutoDeliver()
+    stopAutoDeliver()
+    autoDeliverActive = true
+    autoDeliverThread = task.spawn(function()
+        while autoDeliverActive and Toggles.AutoDeliver and Toggles.AutoDeliver.Value do
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if not hrp or not droppedItemsFolder then task.wait(0.5) continue end
+
+            local myPos = hrp.Position
+            local radius = Options.AutoDeliverRadius and Options.AutoDeliverRadius.Value or 20
+
+            local generatorLoc = getGeneratorPosition()
+            local shredderLoc = getShredderPosition()
+
+            for _, item in ipairs(droppedItemsFolder:GetChildren()) do
+                if not autoDeliverActive then break end
+                if not item.Parent then continue end
+
+                local cat = itemCategoryLookup[item.Name]
+                if cat == "Resource" or cat == "Fuel" then
+                    local targetLoc = nil
+                    if cat == "Fuel" then
+                        targetLoc = generatorLoc
+                    elseif cat == "Resource" then
+                        targetLoc = shredderLoc
+                    end
+
+                    if targetLoc then
+                        local mainPart = item.PrimaryPart or getItemMainPart(item)
+                        if mainPart then
+                            local dist = (mainPart.Position - myPos).Magnitude
+                            if dist <= radius then
+                                local now = tick()
+                                if not autoDeliverAttempts[item] or (now - autoDeliverAttempts[item]) > 1.5 then
+                                    autoDeliverAttempts[item] = now
+                                    teleportItemToTarget(item, targetLoc)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait(0.25)
+        end
+    end)
+end
+
 local autoPickupActive = false
 local autoPickupThread = nil
 local autoPickupAttempts = {}
@@ -3115,6 +3238,33 @@ autoPickupGroup:AddDropdown("AutoPickupBlacklist", {
     Searchable = true,
 })
 
+local autoDeliverGroup = Tabs.Exploits:AddLeftGroupbox("Auto Deliver Items", "truck")
+
+autoDeliverGroup:AddToggle("AutoDeliver", {
+    Text = "Auto Deliver Items",
+    Default = false,
+    Tooltip = "Automatically teleports approached Fuel to Generator and Resource/Scrap to Shredder.",
+    Callback = function(state)
+        if state then
+            startAutoDeliver()
+            Library:Notify({ Title = "Auto Deliver Items", Description = "Active – " .. (Options.AutoDeliverRadius and Options.AutoDeliverRadius.Value or 20) .. " stud radius", Time = 2 })
+        else
+            stopAutoDeliver()
+            Library:Notify({ Title = "Auto Deliver Items", Description = "Stopped", Time = 2 })
+        end
+    end,
+})
+
+autoDeliverGroup:AddSlider("AutoDeliverRadius", {
+    Text = "Radius",
+    Default = 20,
+    Min = 5,
+    Max = 35,
+    Rounding = 0,
+    Suffix = " studs",
+    Tooltip = "Radius within which items are detected and delivered.",
+})
+
 local bringPickupGroup = Tabs.Exploits:AddRightGroupbox("Bring Pickup Item", "download")
 
 bringPickupGroup:AddToggle("BringPickupItem", {
@@ -3347,6 +3497,7 @@ Library:OnUnload(function()
     connections = {}
 
     stopAutoPickup()
+    stopAutoDeliver()
     stopBringPickup()
     stopRepairAura()
     stopFly()
