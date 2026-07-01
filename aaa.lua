@@ -2355,6 +2355,64 @@ local function stopAutoDeliver()
     autoDeliverAttempts = {}
 end
 
+local autoDragActive = false
+local autoDragThread = nil
+
+local function stopAutoDrag()
+    autoDragActive = false
+    if autoDragThread then
+        pcall(function() task.cancel(autoDragThread) end)
+        autoDragThread = nil
+    end
+end
+
+local function startAutoDrag()
+    stopAutoDrag()
+    autoDragActive = true
+    autoDragThread = task.spawn(function()
+        while autoDragActive and Toggles.AutoDrag and Toggles.AutoDrag.Value do
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if not hrp or not droppedItemsFolder then task.wait(0.1) continue end
+
+            local myPos = hrp.Position
+            local radius = Options.AutoDragRadius and Options.AutoDragRadius.Value or 50
+            local whitelist = Options.ItemESPWhitelist and Options.ItemESPWhitelist.Value or {}
+
+            for _, item in ipairs(droppedItemsFolder:GetChildren()) do
+                if not autoDragActive then break end
+                if not item.Parent then continue end
+
+                if whitelist[item.Name] then
+                    local mainPart = item.PrimaryPart or getItemMainPart(item)
+                    if mainPart then
+                        local dist = (mainPart.Position - myPos).Magnitude
+                        if dist <= radius then
+                            pcall(function()
+                                for _, part in ipairs(item:GetDescendants()) do
+                                    if part:IsA("BasePart") then
+                                        part.CanCollide = false
+                                        part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                        part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                                    end
+                                end
+                                local dragOffset = Vector3.new(0, -1, 4)
+                                local targetCF = hrp.CFrame * CFrame.new(dragOffset)
+                                if item.PrimaryPart then
+                                    item:PivotTo(targetCF)
+                                else
+                                    mainPart.CFrame = targetCF
+                                end
+                            end)
+                        end
+                    end
+                end
+            end
+            task.wait(0.03)
+        end
+    end)
+end
+
 local function startAutoDeliver()
     stopAutoDeliver()
     autoDeliverActive = true
@@ -2868,12 +2926,13 @@ movementGroup:AddToggle("SpeedHack", {
 })
 
 movementGroup:AddSlider("SpeedValue", {
-    Text = "Walk Speed",
+    Text = "Walk Speed (Safe Limit: 32)",
     Default = 32,
     Min = 16,
-    Max = 32,
+    Max = 100,
     Rounding = 0,
     Suffix = " studs/s",
+    Tooltip = "Note: Speeds above 32 will trigger server-side rubberbanding due to anti-cheat checks.",
 })
 
 movementGroup:AddToggle("InfJump", {
@@ -2928,12 +2987,13 @@ movementGroup:AddToggle("Fly", {
 })
 
 movementGroup:AddSlider("FlySpeed", {
-    Text = "Fly Speed",
+    Text = "Fly Speed (Safe Limit: 32)",
     Default = 32,
     Min = 10,
-    Max = 32,
+    Max = 100,
     Rounding = 0,
     Suffix = " studs/s",
+    Tooltip = "Note: Speeds above 32 will trigger server-side rubberbanding due to anti-cheat checks.",
 })
 
 movementGroup:AddToggle("AutoSprint", {
@@ -3265,6 +3325,31 @@ autoDeliverGroup:AddSlider("AutoDeliverRadius", {
     Tooltip = "Radius within which items are detected and delivered.",
 })
 
+autoDeliverGroup:AddToggle("AutoDrag", {
+    Text = "Auto Drag Items",
+    Default = false,
+    Tooltip = "Whitelisted items within radius will follow behind you.",
+    Callback = function(state)
+        if state then
+            startAutoDrag()
+            Library:Notify({ Title = "Auto Drag Items", Description = "Active – " .. (Options.AutoDragRadius and Options.AutoDragRadius.Value or 50) .. " stud radius", Time = 2 })
+        else
+            stopAutoDrag()
+            Library:Notify({ Title = "Auto Drag Items", Description = "Stopped", Time = 2 })
+        end
+    end,
+})
+
+autoDeliverGroup:AddSlider("AutoDragRadius", {
+    Text = "Drag Radius",
+    Default = 50,
+    Min = 10,
+    Max = 150,
+    Rounding = 0,
+    Suffix = " studs",
+    Tooltip = "Radius within which whitelisted items are dragged.",
+})
+
 local bringPickupGroup = Tabs.Exploits:AddRightGroupbox("Bring Pickup Item", "download")
 
 bringPickupGroup:AddToggle("BringPickupItem", {
@@ -3498,6 +3583,7 @@ Library:OnUnload(function()
 
     stopAutoPickup()
     stopAutoDeliver()
+    stopAutoDrag()
     stopBringPickup()
     stopRepairAura()
     stopFly()
