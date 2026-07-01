@@ -1058,24 +1058,14 @@ local function setupStructureListeners()
 end
 setupStructureListeners()
 
-local speedHackConn = RunService.Heartbeat:Connect(function(dt)
-    if not Toggles.SpeedHack or not Toggles.SpeedHack.Value then return end
+local speedHackConn = RunService.Stepped:Connect(function()
+    if not Toggles.SpeedHack then return end
+    if not Toggles.SpeedHack.Value then return end
     local char = LocalPlayer.Character
     if not char then return end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if humanoid and root then
-        local targetSpeed = Options.SpeedValue and Options.SpeedValue.Value or 16
-        if targetSpeed <= 32 then
-            humanoid.WalkSpeed = targetSpeed
-        else
-            humanoid.WalkSpeed = 32
-            if humanoid.MoveDirection.Magnitude > 0 then
-                local extraSpeed = targetSpeed - 32
-                local moveOffset = humanoid.MoveDirection * extraSpeed * dt
-                root.CFrame = root.CFrame + moveOffset
-            end
-        end
+    if humanoid then
+        humanoid.WalkSpeed = Options.SpeedValue and Options.SpeedValue.Value or 16
     end
 end)
 table.insert(connections, speedHackConn)
@@ -1157,7 +1147,7 @@ stopFly = function()
     end
 end
 
-local flyMoveConn = RunService.RenderStepped:Connect(function(dt)
+local flyMoveConn = RunService.RenderStepped:Connect(function()
     if not Toggles.Fly then return end
     if not Toggles.Fly.Value or not flyActive then return end
 
@@ -1182,14 +1172,7 @@ local flyMoveConn = RunService.RenderStepped:Connect(function(dt)
 
     if dir.Magnitude > 0 then dir = dir.Unit end
 
-    -- Use CFrame translation and keep physical velocities at zero to bypass rubberbanding
-    rootPart.CFrame = rootPart.CFrame + (dir * speed * dt)
-    
-    pcall(function()
-        rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        rootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-    end)
-    if flyBV then flyBV.Velocity = Vector3.new(0, 0, 0) end
+    if flyBV then flyBV.Velocity = dir * speed end
     if flyBG then flyBG.CFrame = cam.CFrame end
 end)
 table.insert(connections, flyMoveConn)
@@ -2886,9 +2869,9 @@ movementGroup:AddToggle("SpeedHack", {
 
 movementGroup:AddSlider("SpeedValue", {
     Text = "Walk Speed",
-    Default = 50,
+    Default = 32,
     Min = 16,
-    Max = 200,
+    Max = 32,
     Rounding = 0,
     Suffix = " studs/s",
 })
@@ -2946,9 +2929,9 @@ movementGroup:AddToggle("Fly", {
 
 movementGroup:AddSlider("FlySpeed", {
     Text = "Fly Speed",
-    Default = 50,
+    Default = 32,
     Min = 10,
-    Max = 300,
+    Max = 32,
     Rounding = 0,
     Suffix = " studs/s",
 })
