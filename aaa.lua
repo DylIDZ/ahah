@@ -1058,14 +1058,24 @@ local function setupStructureListeners()
 end
 setupStructureListeners()
 
-local speedHackConn = RunService.Stepped:Connect(function()
-    if not Toggles.SpeedHack then return end
-    if not Toggles.SpeedHack.Value then return end
+local speedHackConn = RunService.Heartbeat:Connect(function(dt)
+    if not Toggles.SpeedHack or not Toggles.SpeedHack.Value then return end
     local char = LocalPlayer.Character
     if not char then return end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.WalkSpeed = Options.SpeedValue.Value
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if humanoid and root then
+        local targetSpeed = Options.SpeedValue and Options.SpeedValue.Value or 16
+        if targetSpeed <= 32 then
+            humanoid.WalkSpeed = targetSpeed
+        else
+            humanoid.WalkSpeed = 32
+            if humanoid.MoveDirection.Magnitude > 0 then
+                local extraSpeed = targetSpeed - 32
+                local moveOffset = humanoid.MoveDirection * extraSpeed * dt
+                root.CFrame = root.CFrame + moveOffset
+            end
+        end
     end
 end)
 table.insert(connections, speedHackConn)
@@ -1081,6 +1091,12 @@ local noclipConn = RunService.Heartbeat:Connect(function()
     if not char then noclipLastCFrame = nil return end
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then noclipLastCFrame = nil return end
+
+    -- Zero velocity to bypass physics rubberbanding checks
+    pcall(function()
+        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    end)
 
     local currentCF = root.CFrame
     if noclipLastCFrame then
@@ -1141,7 +1157,7 @@ stopFly = function()
     end
 end
 
-local flyMoveConn = RunService.RenderStepped:Connect(function()
+local flyMoveConn = RunService.RenderStepped:Connect(function(dt)
     if not Toggles.Fly then return end
     if not Toggles.Fly.Value or not flyActive then return end
 
@@ -1166,7 +1182,14 @@ local flyMoveConn = RunService.RenderStepped:Connect(function()
 
     if dir.Magnitude > 0 then dir = dir.Unit end
 
-    if flyBV then flyBV.Velocity = dir * speed end
+    -- Use CFrame translation and keep physical velocities at zero to bypass rubberbanding
+    rootPart.CFrame = rootPart.CFrame + (dir * speed * dt)
+    
+    pcall(function()
+        rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        rootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    end)
+    if flyBV then flyBV.Velocity = Vector3.new(0, 0, 0) end
     if flyBG then flyBG.CFrame = cam.CFrame end
 end)
 table.insert(connections, flyMoveConn)
