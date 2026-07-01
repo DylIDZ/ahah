@@ -2357,6 +2357,7 @@ end
 
 local autoDragActive = false
 local autoDragThread = nil
+local currentlyDraggedItems = {}
 
 local function stopAutoDrag()
     autoDragActive = false
@@ -2364,6 +2365,19 @@ local function stopAutoDrag()
         pcall(function() task.cancel(autoDragThread) end)
         autoDragThread = nil
     end
+    -- Restore CanCollide to true for all remaining dragged items on stop
+    for item, _ in pairs(currentlyDraggedItems) do
+        if item.Parent then
+            pcall(function()
+                for _, part in ipairs(item:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = true
+                    end
+                end
+            end)
+        end
+    end
+    currentlyDraggedItems = {}
 end
 
 local function startAutoDrag()
@@ -2377,17 +2391,40 @@ local function startAutoDrag()
 
             local myPos = hrp.Position
             local radius = Options.AutoDragRadius and Options.AutoDragRadius.Value or 50
+            local deliverRadius = Options.AutoDeliverRadius and Options.AutoDeliverRadius.Value or 20
             local whitelist = Options.ItemESPWhitelist and Options.ItemESPWhitelist.Value or {}
+
+            local generatorLoc = getGeneratorPosition()
+            local shredderLoc = getShredderPosition()
+            
+            local activeThisFrame = {}
 
             for _, item in ipairs(droppedItemsFolder:GetChildren()) do
                 if not autoDragActive then break end
                 if not item.Parent then continue end
 
-                if whitelist[item.Name] then
+                local cat = itemCategoryLookup[item.Name]
+                local nearMachine = false
+                
+                if cat == "Fuel" and generatorLoc then
+                    if (generatorLoc - myPos).Magnitude <= deliverRadius then
+                        nearMachine = true
+                    end
+                elseif cat == "Resource" and shredderLoc then
+                    if (shredderLoc - myPos).Magnitude <= deliverRadius then
+                        nearMachine = true
+                    end
+                end
+
+                local shouldDrag = whitelist[item.Name] and not nearMachine
+                
+                if shouldDrag then
                     local mainPart = item.PrimaryPart or getItemMainPart(item)
                     if mainPart then
                         local dist = (mainPart.Position - myPos).Magnitude
                         if dist <= radius then
+                            activeThisFrame[item] = true
+                            currentlyDraggedItems[item] = true
                             pcall(function()
                                 for _, part in ipairs(item:GetDescendants()) do
                                     if part:IsA("BasePart") then
@@ -2408,6 +2445,25 @@ local function startAutoDrag()
                     end
                 end
             end
+
+            -- Restore CanCollide for items that were released this frame
+            for item, _ in pairs(currentlyDraggedItems) do
+                if not activeThisFrame[item] then
+                    currentlyDraggedItems[item] = nil
+                    if item.Parent then
+                        pcall(function()
+                            for _, part in ipairs(item:GetDescendants()) do
+                                if part:IsA("BasePart") then
+                                    part.CanCollide = true
+                                    part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                    part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                                end
+                            end
+                        end)
+                    end
+                end
+            end
+
             task.wait(0.03)
         end
     end)
