@@ -2383,14 +2383,17 @@ local function startAutoDeliver()
                     end
 
                     if targetLoc then
-                        local mainPart = item.PrimaryPart or getItemMainPart(item)
-                        if mainPart then
-                            local dist = (mainPart.Position - myPos).Magnitude
-                            if dist <= radius then
-                                local now = tick()
-                                if not autoDeliverAttempts[item] or (now - autoDeliverAttempts[item]) > 1.5 then
-                                    autoDeliverAttempts[item] = now
-                                    teleportItemToTarget(item, targetLoc)
+                        local distToTarget = (targetLoc - myPos).Magnitude
+                        if distToTarget <= 100 then
+                            local mainPart = item.PrimaryPart or getItemMainPart(item)
+                            if mainPart then
+                                local dist = (mainPart.Position - myPos).Magnitude
+                                if dist <= radius then
+                                    local now = tick()
+                                    if not autoDeliverAttempts[item] or (now - autoDeliverAttempts[item]) > 1.5 then
+                                        autoDeliverAttempts[item] = now
+                                        teleportItemToTarget(item, targetLoc)
+                                    end
                                 end
                             end
                         end
