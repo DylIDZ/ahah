@@ -1065,7 +1065,7 @@ local speedHackConn = RunService.Stepped:Connect(function()
     if not char then return end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if humanoid then
-        humanoid.WalkSpeed = Options.SpeedValue and Options.SpeedValue.Value or 16
+        humanoid.WalkSpeed = Options.SpeedValue.Value
     end
 end)
 table.insert(connections, speedHackConn)
@@ -1081,12 +1081,6 @@ local noclipConn = RunService.Heartbeat:Connect(function()
     if not char then noclipLastCFrame = nil return end
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then noclipLastCFrame = nil return end
-
-    -- Zero velocity to bypass physics rubberbanding checks
-    pcall(function()
-        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-    end)
 
     local currentCF = root.CFrame
     if noclipLastCFrame then
@@ -2355,120 +2349,6 @@ local function stopAutoDeliver()
     autoDeliverAttempts = {}
 end
 
-local autoDragActive = false
-local autoDragThread = nil
-local currentlyDraggedItems = {}
-
-local function stopAutoDrag()
-    autoDragActive = false
-    if autoDragThread then
-        pcall(function() task.cancel(autoDragThread) end)
-        autoDragThread = nil
-    end
-    -- Restore CanCollide to true for all remaining dragged items on stop
-    for item, _ in pairs(currentlyDraggedItems) do
-        if item.Parent then
-            pcall(function()
-                for _, part in ipairs(item:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = true
-                    end
-                end
-            end)
-        end
-    end
-    currentlyDraggedItems = {}
-end
-
-local function startAutoDrag()
-    stopAutoDrag()
-    autoDragActive = true
-    autoDragThread = task.spawn(function()
-        while autoDragActive and Toggles.AutoDrag and Toggles.AutoDrag.Value do
-            local char = LocalPlayer.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            if not hrp or not droppedItemsFolder then task.wait(0.1) continue end
-
-            local myPos = hrp.Position
-            local radius = Options.AutoDragRadius and Options.AutoDragRadius.Value or 50
-            local deliverRadius = Options.AutoDeliverRadius and Options.AutoDeliverRadius.Value or 20
-            local whitelist = Options.ItemESPWhitelist and Options.ItemESPWhitelist.Value or {}
-
-            local generatorLoc = getGeneratorPosition()
-            local shredderLoc = getShredderPosition()
-            
-            local activeThisFrame = {}
-
-            for _, item in ipairs(droppedItemsFolder:GetChildren()) do
-                if not autoDragActive then break end
-                if not item.Parent then continue end
-
-                local cat = itemCategoryLookup[item.Name]
-                local nearMachine = false
-                
-                if cat == "Fuel" and generatorLoc then
-                    if (generatorLoc - myPos).Magnitude <= deliverRadius then
-                        nearMachine = true
-                    end
-                elseif cat == "Resource" and shredderLoc then
-                    if (shredderLoc - myPos).Magnitude <= deliverRadius then
-                        nearMachine = true
-                    end
-                end
-
-                local shouldDrag = whitelist[item.Name] and not nearMachine
-                
-                if shouldDrag then
-                    local mainPart = item.PrimaryPart or getItemMainPart(item)
-                    if mainPart then
-                        local dist = (mainPart.Position - myPos).Magnitude
-                        if dist <= radius then
-                            activeThisFrame[item] = true
-                            currentlyDraggedItems[item] = true
-                            pcall(function()
-                                for _, part in ipairs(item:GetDescendants()) do
-                                    if part:IsA("BasePart") then
-                                        part.CanCollide = false
-                                        part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                                        part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                                    end
-                                end
-                                local dragOffset = Vector3.new(0, -1, 4)
-                                local targetCF = hrp.CFrame * CFrame.new(dragOffset)
-                                if item.PrimaryPart then
-                                    item:PivotTo(targetCF)
-                                else
-                                    mainPart.CFrame = targetCF
-                                end
-                            end)
-                        end
-                    end
-                end
-            end
-
-            -- Restore CanCollide for items that were released this frame
-            for item, _ in pairs(currentlyDraggedItems) do
-                if not activeThisFrame[item] then
-                    currentlyDraggedItems[item] = nil
-                    if item.Parent then
-                        pcall(function()
-                            for _, part in ipairs(item:GetDescendants()) do
-                                if part:IsA("BasePart") then
-                                    part.CanCollide = true
-                                    part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                                    part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                                end
-                            end
-                        end)
-                    end
-                end
-            end
-
-            task.wait(0.03)
-        end
-    end)
-end
-
 local function startAutoDeliver()
     stopAutoDeliver()
     autoDeliverActive = true
@@ -2982,13 +2862,12 @@ movementGroup:AddToggle("SpeedHack", {
 })
 
 movementGroup:AddSlider("SpeedValue", {
-    Text = "Walk Speed (Safe Limit: 32)",
-    Default = 32,
+    Text = "Walk Speed",
+    Default = 50,
     Min = 16,
-    Max = 100,
+    Max = 200,
     Rounding = 0,
     Suffix = " studs/s",
-    Tooltip = "Note: Speeds above 32 will trigger server-side rubberbanding due to anti-cheat checks.",
 })
 
 movementGroup:AddToggle("InfJump", {
@@ -3043,13 +2922,12 @@ movementGroup:AddToggle("Fly", {
 })
 
 movementGroup:AddSlider("FlySpeed", {
-    Text = "Fly Speed (Safe Limit: 32)",
-    Default = 32,
+    Text = "Fly Speed",
+    Default = 50,
     Min = 10,
-    Max = 100,
+    Max = 300,
     Rounding = 0,
     Suffix = " studs/s",
-    Tooltip = "Note: Speeds above 32 will trigger server-side rubberbanding due to anti-cheat checks.",
 })
 
 movementGroup:AddToggle("AutoSprint", {
@@ -3381,31 +3259,6 @@ autoDeliverGroup:AddSlider("AutoDeliverRadius", {
     Tooltip = "Radius within which items are detected and delivered.",
 })
 
-autoDeliverGroup:AddToggle("AutoDrag", {
-    Text = "Auto Drag Items",
-    Default = false,
-    Tooltip = "Whitelisted items within radius will follow behind you.",
-    Callback = function(state)
-        if state then
-            startAutoDrag()
-            Library:Notify({ Title = "Auto Drag Items", Description = "Active – " .. (Options.AutoDragRadius and Options.AutoDragRadius.Value or 50) .. " stud radius", Time = 2 })
-        else
-            stopAutoDrag()
-            Library:Notify({ Title = "Auto Drag Items", Description = "Stopped", Time = 2 })
-        end
-    end,
-})
-
-autoDeliverGroup:AddSlider("AutoDragRadius", {
-    Text = "Drag Radius",
-    Default = 50,
-    Min = 10,
-    Max = 150,
-    Rounding = 0,
-    Suffix = " studs",
-    Tooltip = "Radius within which whitelisted items are dragged.",
-})
-
 local bringPickupGroup = Tabs.Exploits:AddRightGroupbox("Bring Pickup Item", "download")
 
 bringPickupGroup:AddToggle("BringPickupItem", {
@@ -3639,7 +3492,6 @@ Library:OnUnload(function()
 
     stopAutoPickup()
     stopAutoDeliver()
-    stopAutoDrag()
     stopBringPickup()
     stopRepairAura()
     stopFly()
