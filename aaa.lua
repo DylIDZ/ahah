@@ -20,30 +20,29 @@ local addSuppressorRemote = Remotes and Remotes:FindFirstChild("Tools") and Remo
 local adjustBackpackRemote = Remotes and Remotes:FindFirstChild("Tools") and Remotes.Tools:FindFirstChild("AdjustBackpack")
 local resetRemote = Remotes and Remotes:FindFirstChild("Misc") and Remotes.Misc:FindFirstChild("Reset")
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Obsidian/main/Library.lua"))()
-local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Obsidian/main/addons/ThemeManager.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Obsidian/main/addons/SaveManager.lua"))()
+local Library = loadstring(game:HttpGet("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
 
 local Options = Library.Options
-local Toggles = Library.Toggles
+local Toggles = Library.Options
 
-Library.ForceCheckbox = false
-Library.ShowToggleFrameInKeybinds = true
-
-local Window = Library:CreateWindow({
+local Window = Library:CreateWindow{
     Title = "SPYMM v8.2",
-    Footer = "Survive the Apocalypse",
-    NotifySide = "Right",
-    ShowCustomCursor = true,
-})
+    SubTitle = "Survive the Apocalypse",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Dark"
+}
 
 local Tabs = {
-    Visuals = Window:AddTab("Visuals", "eye"),
-    Player = Window:AddTab("Player", "user"),
-    Combat = Window:AddTab("Combat", "swords"),
-    Exploits = Window:AddTab("Exploits", "zap"),
-    Misc = Window:AddTab("Misc", "settings"),
-    ["UI Settings"] = Window:AddTab("UI Settings", "sliders-horizontal"),
+    Visuals = Window:CreateTab{ Title = "Visuals", Icon = "phosphor-eye-bold" },
+    Player = Window:CreateTab{ Title = "Player", Icon = "phosphor-user-bold" },
+    Combat = Window:CreateTab{ Title = "Combat", Icon = "phosphor-swords-bold" },
+    Exploits = Window:CreateTab{ Title = "Exploits", Icon = "phosphor-zap-bold" },
+    Misc = Window:CreateTab{ Title = "Misc", Icon = "phosphor-gear-bold" },
+    ["UI Settings"] = Window:CreateTab{ Title = "UI Settings", Icon = "phosphor-sliders-horizontal-bold" }
 }
 
 local connections = {}
@@ -2739,15 +2738,24 @@ local function applyESPTransparency()
 end
 
 do
-local espSettingsGroup = Tabs.Visuals:AddLeftGroupbox("ESP Settings", "settings")
+-- Visuals Tab
+Tabs.Visuals:CreateParagraph("ESPSettingsHeader", {
+    Title = "ESP Settings",
+    Content = "Global configuration for ESP rendering"
+})
 
-espSettingsGroup:AddSlider("ESPMaxDistance", {
-    Text = "Max Distance", Default = 300, Min = 50, Max = 2000, Rounding = 0, Suffix = " studs",
-    Tooltip = "Maximum render distance shared by all ESP systems.",
-    Callback = function()
+Tabs.Visuals:CreateSlider("ESPMaxDistance", {
+    Title = "Max Distance",
+    Description = "Maximum render distance shared by all ESP systems.",
+    Min = 50,
+    Max = 2000,
+    Default = 300,
+    Rounding = 0,
+    Suffix = " studs",
+    Callback = function(v)
         refreshMobESP(); refreshPlayerESP(); refreshStructureESP()
         for _, sys in pairs(espSystems) do sys.refresh() end
-    end,
+    end
 })
 
 local function setAllESPNames(state)
@@ -2764,67 +2772,131 @@ local function setAllESPDistance(state)
     for _, sys in pairs(espSystems) do sys.vars.Distance = state; sys.refresh() end
 end
 
-espSettingsGroup:AddToggle("ESPShowNames", { Text = "Show Names", Default = false, Tooltip = "Show labels on all ESPs.", Callback = function(s) setAllESPNames(s) end })
-espSettingsGroup:AddToggle("ESPShowDistance", { Text = "Show Distance", Default = false, Tooltip = "Show distance on all ESPs.", Callback = function(s) setAllESPDistance(s) end })
-
-espSettingsGroup:AddSlider("ESPTextSize", {
-    Text = "Text Size", Default = 10, Min = 8, Max = 24, Rounding = 0, Suffix = "px",
-    Tooltip = "Font size for all ESP labels. Lower = less cluttered screen.",
-    Callback = function(v) applyESPTextSize(v) end,
+Tabs.Visuals:CreateToggle("ESPShowNames", {
+    Title = "Show Names",
+    Description = "Show labels on all ESPs.",
+    Default = false,
+    Callback = function(s) setAllESPNames(s) end
 })
 
-espSettingsGroup:AddSlider("ESPFillTransparency", {
-    Text = "Fill Transparency", Default = 40, Min = 0, Max = 100, Rounding = 0, Suffix = "%",
-    Tooltip = "Chams fill opacity for all ESP. 0% = fully solid, 100% = invisible fill (outline only).",
-    Callback = function(v) espConfig.fillTransparency = v / 100; applyESPTransparency() end,
+Tabs.Visuals:CreateToggle("ESPShowDistance", {
+    Title = "Show Distance",
+    Description = "Show distance on all ESPs.",
+    Default = false,
+    Callback = function(s) setAllESPDistance(s) end
 })
 
-espSettingsGroup:AddSlider("ESPOutlineTransparency", {
-    Text = "Outline Transparency", Default = 0, Min = 0, Max = 100, Rounding = 0, Suffix = "%",
-    Tooltip = "Chams outline opacity for all ESP. 0% = fully solid outline.",
-    Callback = function(v) espConfig.outlineTransparency = v / 100; applyESPTransparency() end,
+Tabs.Visuals:CreateSlider("ESPTextSize", {
+    Title = "Text Size",
+    Description = "Font size for all ESP labels.",
+    Min = 8,
+    Max = 24,
+    Default = 10,
+    Rounding = 0,
+    Suffix = "px",
+    Callback = function(v) applyESPTextSize(v) end
 })
 
-local mobESPGroup = Tabs.Visuals:AddLeftGroupbox("Mob ESP", "eye")
-mobESPGroup:AddToggle("MobESP", { Text = "Mob ESP", Default = false, Tooltip = "Highlight zombies/monsters through walls.", Callback = function(s) mobOptions.ESP = s; refreshMobESP() end })
-mobESPGroup:AddToggle("MobChams", { Text = "Chams", Default = false, Callback = function(s) mobOptions.Chams = s; refreshMobESP() end })
+Tabs.Visuals:CreateSlider("ESPFillTransparency", {
+    Title = "Fill Transparency",
+    Description = "Chams fill opacity for all ESP (0% = solid, 100% = invisible).",
+    Min = 0,
+    Max = 100,
+    Default = 40,
+    Rounding = 0,
+    Suffix = "%",
+    Callback = function(v) espConfig.fillTransparency = v / 100; applyESPTransparency() end
+})
 
-local playerESPGroup = Tabs.Visuals:AddLeftGroupbox("Player ESP", "users")
-playerESPGroup:AddToggle("PlayerESP", { Text = "Player ESP", Default = false, Callback = function(s) playerESPVars.ESP = s; refreshPlayerESP() end })
-playerESPGroup:AddToggle("PlayerChams", { Text = "Chams", Default = false, Callback = function(s) playerESPVars.Chams = s; refreshPlayerESP() end })
-playerESPGroup:AddToggle("PlayerHealth", { Text = "Show Health", Default = false, Tooltip = "Health bar + HP above players.", Callback = function(s) playerESPVars.Health = s; refreshPlayerESP() end })
+Tabs.Visuals:CreateSlider("ESPOutlineTransparency", {
+    Title = "Outline Transparency",
+    Description = "Chams outline opacity for all ESP (0% = solid).",
+    Min = 0,
+    Max = 100,
+    Default = 0,
+    Rounding = 0,
+    Suffix = "%",
+    Callback = function(v) espConfig.outlineTransparency = v / 100; applyESPTransparency() end
+})
 
-local itemESPGroup = Tabs.Visuals:AddRightGroupbox("Item ESP", "package")
+Tabs.Visuals:CreateParagraph("MobESPHeader", {
+    Title = "Mob ESP",
+    Content = "Settings for highlighting zombies and monsters"
+})
 
-itemESPGroup:AddToggle("ItemESPChams", {
-    Text = "Item Chams", Default = false,
-    Tooltip = "Enable/disable chams highlight for items.",
+Tabs.Visuals:CreateToggle("MobESP", {
+    Title = "Mob ESP",
+    Description = "Highlight zombies/monsters through walls.",
+    Default = false,
+    Callback = function(s) mobOptions.ESP = s; refreshMobESP() end
+})
+
+Tabs.Visuals:CreateToggle("MobChams", {
+    Title = "Chams",
+    Description = "Fill highlight for mobs.",
+    Default = false,
+    Callback = function(s) mobOptions.Chams = s; refreshMobESP() end
+})
+
+Tabs.Visuals:CreateParagraph("PlayerESPHeader", {
+    Title = "Player ESP",
+    Content = "Settings for highlighting other players"
+})
+
+Tabs.Visuals:CreateToggle("PlayerESP", {
+    Title = "Player ESP",
+    Description = "Highlight players through walls.",
+    Default = false,
+    Callback = function(s) playerESPVars.ESP = s; refreshPlayerESP() end
+})
+
+Tabs.Visuals:CreateToggle("PlayerChams", {
+    Title = "Chams",
+    Description = "Fill highlight for players.",
+    Default = false,
+    Callback = function(s) playerESPVars.Chams = s; refreshPlayerESP() end
+})
+
+Tabs.Visuals:CreateToggle("PlayerHealth", {
+    Title = "Show Health",
+    Description = "Health bar + HP above players.",
+    Default = false,
+    Callback = function(s) playerESPVars.Health = s; refreshPlayerESP() end
+})
+
+Tabs.Visuals:CreateParagraph("ItemESPHeader", {
+    Title = "Item ESP",
+    Content = "Highlight dropped weapons, food, and resources"
+})
+
+Tabs.Visuals:CreateToggle("ItemESPChams", {
+    Title = "Item Chams",
+    Description = "Enable/disable chams highlight for items.",
+    Default = false,
     Callback = function(s)
         for _, sys in pairs(espSystems) do sys.vars.Chams = s; sys.refresh() end
-    end,
+    end
 })
 
-itemESPGroup:AddToggle("ItemESPAll", {
-    Text = "All Items", Default = false,
-    Tooltip = "Show ESP (names, distance, and chams) for all items. Disable to use the whitelist filter below.",
+Tabs.Visuals:CreateToggle("ItemESPAll", {
+    Title = "All Items",
+    Description = "Show ESP (names, distance, and chams) for all items. Disable to use whitelist.",
+    Default = false,
     Callback = function(s)
         for _, sys in pairs(espSystems) do sys.refresh() end
-    end,
+    end
 })
 
-itemESPGroup:AddDropdown("ItemESPWhitelist", {
+Tabs.Visuals:CreateDropdown("ItemESPWhitelist", {
+    Title = "Item Whitelist",
+    Description = "Items to show ESP for. Only active when 'All Items' is disabled.",
     Values = itemNames,
     Default = { "Scrap", "Battery", "Fuel" },
     Multi = true,
-    Text = "Item Whitelist",
-    Tooltip = "Items to show ESP for. Only active when 'All Items' is disabled.",
-    Searchable = true,
     Callback = function()
         for _, sys in pairs(espSystems) do sys.refresh() end
-    end,
+    end
 })
-
-itemESPGroup:AddDivider()
 
 local itemESPDefs = {
     { key = "Gun", text = "Gun ESP", tip = "Guns (Red)" },
@@ -2836,35 +2908,57 @@ local itemESPDefs = {
     { key = "Fuel", text = "Fuel ESP", tip = "Fuel (Gold)" },
     { key = "Ability", text = "Abilities ESP", tip = "Abilities (Purple)" },
 }
+
 for _, d in ipairs(itemESPDefs) do
-    itemESPGroup:AddToggle(d.key .. "ESPEnabled", {
-        Text = d.text, Default = false, Tooltip = d.tip,
-        Callback = function(s) espSystems[d.key].vars.ESP = s; espSystems[d.key].refresh() end,
-    }):AddColorPicker(d.key .. "ESPColor", {
-        Default = espSystems[d.key].colors.fill,
+    local toggle = Tabs.Visuals:CreateToggle(d.key .. "ESPEnabled", {
+        Title = d.text,
+        Description = d.tip,
+        Default = false,
+        Callback = function(s) espSystems[d.key].vars.ESP = s; espSystems[d.key].refresh() end
+    })
+    toggle:AddColorpicker(d.key .. "ESPColor", {
         Title = d.text .. " Color",
+        Default = espSystems[d.key].colors.fill,
         Callback = function(c)
             espSystems[d.key].colors.fill = c
             for _, esp in pairs(espSystems[d.key].instances) do
                 if esp.Highlight and esp.Highlight.Parent then esp.Highlight.FillColor = c end
                 if esp.NameLabel then esp.NameLabel.TextColor3 = c end
             end
-        end,
+        end
     })
 end
 
-itemESPGroup:AddDivider()
-itemESPGroup:AddLabel("Structures")
-itemESPGroup:AddToggle("StructureESP", { Text = "Structure ESP", Default = false, Callback = function(s) structureESPVars.ESP = s; refreshStructureESP() end })
-itemESPGroup:AddToggle("StructureChams", { Text = "Chams", Default = false, Callback = function(s) structureESPVars.Chams = s; refreshStructureESP() end })
+Tabs.Visuals:CreateParagraph("StructuresHeader", {
+    Title = "Structures",
+    Content = "Highlight placed base defenses and utility structures"
+})
 
+Tabs.Visuals:CreateToggle("StructureESP", {
+    Title = "Structure ESP",
+    Description = "Highlight structures through walls.",
+    Default = false,
+    Callback = function(s) structureESPVars.ESP = s; refreshStructureESP() end
+})
+
+Tabs.Visuals:CreateToggle("StructureChams", {
+    Title = "Chams",
+    Description = "Fill highlight for structures.",
+    Default = false,
+    Callback = function(s) structureESPVars.Chams = s; refreshStructureESP() end
+})
 end
 
 do
-local movementGroup = Tabs.Player:AddLeftGroupbox("Movement", "move")
+-- Player Tab
+Tabs.Player:CreateParagraph("MovementHeader", {
+    Title = "Movement",
+    Content = "LocalPlayer movement exploits"
+})
 
-movementGroup:AddToggle("SpeedHack", {
-    Text = "Speed Hack",
+Tabs.Player:CreateToggle("SpeedHack", {
+    Title = "Speed Hack",
+    Description = "Enable custom walk speed bypass.",
     Default = false,
     Callback = function(state)
         if state then
@@ -2886,20 +2980,22 @@ movementGroup:AddToggle("SpeedHack", {
             end
             Library:Notify({ Title = "Speed Hack", Description = "Speed restored to " .. (originalValues.walkSpeed or 16), Time = 2 })
         end
-    end,
+    end
 })
 
-movementGroup:AddSlider("SpeedValue", {
-    Text = "Walk Speed",
-    Default = 50,
+Tabs.Player:CreateSlider("SpeedValue", {
+    Title = "Walk Speed",
+    Description = "Custom walk speed speed value.",
     Min = 16,
     Max = 200,
+    Default = 50,
     Rounding = 0,
-    Suffix = " studs/s",
+    Suffix = " studs/s"
 })
 
-movementGroup:AddToggle("InfJump", {
-    Text = "Inf Jump",
+Tabs.Player:CreateToggle("InfJump", {
+    Title = "Inf Jump",
+    Description = "Hold space to jump infinitely.",
     Default = false,
     Callback = function(state)
         Library:Notify({
@@ -2907,7 +3003,7 @@ movementGroup:AddToggle("InfJump", {
             Description = state and "Enabled - jump anywhere!" or "Disabled",
             Time = 2,
         })
-    end,
+    end
 })
 
 local jumpConn = UserInputService.JumpRequest:Connect(function()
@@ -2923,8 +3019,9 @@ local jumpConn = UserInputService.JumpRequest:Connect(function()
 end)
 table.insert(connections, jumpConn)
 
-movementGroup:AddToggle("NoClip", {
-    Text = "NoClip",
+Tabs.Player:CreateToggle("NoClip", {
+    Title = "NoClip",
+    Description = "Disable body collisions (walk through walls).",
     Default = false,
     Callback = function(state)
         Library:Notify({
@@ -2932,11 +3029,12 @@ movementGroup:AddToggle("NoClip", {
             Description = state and "Enabled - walk through walls!" or "Disabled",
             Time = 2,
         })
-    end,
+    end
 })
 
-movementGroup:AddToggle("Fly", {
-    Text = "Fly",
+Tabs.Player:CreateToggle("Fly", {
+    Title = "Fly",
+    Description = "Fly around the map.",
     Default = false,
     Callback = function(state)
         if state then
@@ -2946,20 +3044,22 @@ movementGroup:AddToggle("Fly", {
             stopFly()
             Library:Notify({ Title = "Fly", Description = "Disabled", Time = 2 })
         end
-    end,
+    end
 })
 
-movementGroup:AddSlider("FlySpeed", {
-    Text = "Fly Speed",
-    Default = 50,
+Tabs.Player:CreateSlider("FlySpeed", {
+    Title = "Fly Speed",
+    Description = "Fly speed value.",
     Min = 10,
     Max = 300,
+    Default = 50,
     Rounding = 0,
-    Suffix = " studs/s",
+    Suffix = " studs/s"
 })
 
-movementGroup:AddToggle("AutoSprint", {
-    Text = "Auto Sprint",
+Tabs.Player:CreateToggle("AutoSprint", {
+    Title = "Auto Sprint",
+    Description = "Automatically sprint without holding Shift.",
     Default = false,
     Callback = function(state)
         if state then
@@ -2969,13 +3069,13 @@ movementGroup:AddToggle("AutoSprint", {
             stopAutoSprint()
             Library:Notify({ Title = "Auto Sprint", Description = "Disabled", Time = 2 })
         end
-    end,
+    end
 })
 
-movementGroup:AddToggle("BunnyHop", {
-    Text = "Bunny Hop",
+Tabs.Player:CreateToggle("BunnyHop", {
+    Title = "Bunny Hop",
+    Description = "Automatically jump while moving for speed/momentum.",
     Default = false,
-    Tooltip = "Automatically jumps while moving for speed/momentum boost.",
     Callback = function(state)
         if state then
             startBhop()
@@ -2984,42 +3084,49 @@ movementGroup:AddToggle("BunnyHop", {
             stopBhop()
             Library:Notify({ Title = "Bunny Hop", Description = "Disabled", Time = 2 })
         end
-    end,
+    end
 })
 
-local danceGroup = Tabs.Player:AddRightGroupbox("Funny Dance FE", "music")
+Tabs.Player:CreateParagraph("FunnyDanceHeader", {
+    Title = "Funny Dance FE",
+    Content = "Plays a looping dance animation visible to all players"
+})
 
-danceGroup:AddToggle("FunnyDance", {
-    Text = "Funny Dance",
+Tabs.Player:CreateToggle("FunnyDance", {
+    Title = "Funny Dance",
+    Description = "Dance animation visible to all. FE compatible!",
     Default = false,
-    Tooltip = "Plays a looping dance animation visible to all players. FE compatible!",
     Callback = function(state)
         if state then
             startFunnyDance()
-            Library:Notify({ Title = "Funny Dance", Description = "Enabled â€“ everyone can see your moves!", Time = 3 })
+            Library:Notify({ Title = "Funny Dance", Description = "Enabled – everyone can see your moves!", Time = 3 })
         else
             stopFunnyDance()
             Library:Notify({ Title = "Funny Dance", Description = "Disabled", Time = 2 })
         end
-    end,
+    end
 })
 
-danceGroup:AddDropdown("DanceStyle", {
+Tabs.Player:CreateDropdown("DanceStyle", {
+    Title = "Dance Style",
+    Description = "Select dance style. Toggle dance off and on to apply.",
     Values = { "Shuffle (Dance 1)", "Twist (Dance 2)", "Robot (Dance 3)" },
-    Default = 1,
-    Text = "Dance Style",
-    Tooltip = "Select dance style. Toggle off and on again to apply a new style.",
+    Default = "Shuffle (Dance 1)",
+    Multi = false
 })
-
 end
 
 do
-local killAuraGroup = Tabs.Combat:AddLeftGroupbox("Kill Aura", "target")
+-- Combat Tab
+Tabs.Combat:CreateParagraph("KillAuraHeader", {
+    Title = "Kill Aura",
+    Content = "AoE auto-attack for mobs"
+})
 
-killAuraGroup:AddToggle("KillAura", {
-    Text = "Kill Aura",
+Tabs.Combat:CreateToggle("KillAura", {
+    Title = "Kill Aura",
+    Description = "Hits all mobs in range in one swing.",
     Default = false,
-    Tooltip = "AoE auto-attack: hits ALL mobs in range in one swing. Priority, auto-equip, and visual indicator configurable below.",
     Callback = function(state)
         if state then
             startKillAura()
@@ -3028,65 +3135,69 @@ killAuraGroup:AddToggle("KillAura", {
             stopKillAura()
             Library:Notify({ Title = "Kill Aura", Description = "Disabled", Time = 2 })
         end
-    end,
+    end
 })
 
-killAuraGroup:AddDropdown("KillAuraPriority", {
+Tabs.Combat:CreateDropdown("KillAuraPriority", {
+    Title = "Target Priority",
+    Description = "Determines target priority.",
     Values = {"Nearest", "Lowest HP", "Highest HP"},
-    Default = 1,
-    Text = "Target Priority",
-    Tooltip = "Determines which mob is attacked first (relevant for RemoteClick fallback; AoE mode hits all anyway).",
+    Default = "Nearest",
+    Multi = false
 })
 
-killAuraGroup:AddToggle("KillAuraAutoEquip", {
-    Text = "Auto-Equip Weapon",
-    Default = false,
-    Tooltip = "Automatically equips the fastest available weapon from your backpack when nothing is held.",
+Tabs.Combat:CreateToggle("KillAuraAutoEquip", {
+    Title = "Auto-Equip Weapon",
+    Description = "Automatically equips the fastest weapon when nothing is held.",
+    Default = false
 })
 
-killAuraGroup:AddToggle("KillAuraShowIndicator", {
-    Text = "Show Target Indicator",
-    Default = true,
-    Tooltip = "Draws a red snapline and circle to the current primary target.",
+Tabs.Combat:CreateToggle("KillAuraShowIndicator", {
+    Title = "Show Target Indicator",
+    Description = "Draws a red snapline to the current target.",
+    Default = true
 })
 
-killAuraGroup:AddToggle("KillAuraExtendedRange", {
-    Text = "Extended Range (+2 studs)",
-    Default = true,
-    Tooltip = "Adds 2 studs to your range. Helps the server register hits at the edge of reach.",
+Tabs.Combat:CreateToggle("KillAuraExtendedRange", {
+    Title = "Extended Range (+2 studs)",
+    Description = "Adds 2 studs to range for better hit registration.",
+    Default = true
 })
 
-killAuraGroup:AddSlider("KillAuraRange", {
-    Text = "Base Range",
-    Default = 6,
+Tabs.Combat:CreateSlider("KillAuraRange", {
+    Title = "Base Range",
+    Description = "Base attack distance.",
     Min = 1,
     Max = 20,
+    Default = 6,
     Rounding = 0,
-    Suffix = " studs",
-    Tooltip = "Base attack distance. Extended Range adds +2 studs. Normal melee reach is ~5-7 studs.",
+    Suffix = " studs"
 })
 
-killAuraGroup:AddSlider("KillAuraSwingRate", {
-    Text = "Swing Delay",
-    Default = 0.5,
+Tabs.Combat:CreateSlider("KillAuraSwingRate", {
+    Title = "Swing Delay",
+    Description = "Minimum delay between swings.",
     Min = 0.1,
     Max = 1.0,
+    Default = 0.5,
     Rounding = 2,
-    Suffix = " s",
-    Tooltip = "Minimum delay between swings. Weapon speed is always enforced as a hard lower bound â€” you can never swing faster than the weapon physically allows (safe mode).",
+    Suffix = " s"
 })
 
-killAuraGroup:AddLabel("Weapon Speeds:", { DoesWrap = true })
-killAuraGroup:AddLabel("  Knife/Katana: 0.25-0.3s", { DoesWrap = true })
-killAuraGroup:AddLabel("  Bat/Hatchet: 0.4-0.45s", { DoesWrap = true })
-killAuraGroup:AddLabel("  Fire Axe/Sledgehammer: 0.55-0.6s", { DoesWrap = true })
+Tabs.Combat:CreateParagraph("WeaponSpeedsInfo", {
+    Title = "Weapon Speeds Info",
+    Content = "Knife/Katana: 0.25-0.3s\nBat/Hatchet: 0.4-0.45s\nFire Axe/Sledgehammer: 0.55-0.6s"
+})
 
-local aimbotGroup = Tabs.Combat:AddRightGroupbox("Aimbot", "crosshair")
+Tabs.Combat:CreateParagraph("AimbotHeader", {
+    Title = "Aimbot",
+    Content = "Auto aim at nearest valid target"
+})
 
-aimbotGroup:AddToggle("Aimbot", {
-    Text = "Aimbot",
+Tabs.Combat:CreateToggle("Aimbot", {
+    Title = "Aimbot",
+    Description = "Auto aim camera at nearest valid target.",
     Default = false,
-    Tooltip = "Automatically aims camera at the nearest valid target within FOV and range.",
     Callback = function(state)
         if state then
             startAimbot()
@@ -3095,154 +3206,157 @@ aimbotGroup:AddToggle("Aimbot", {
             stopAimbot()
             Library:Notify({ Title = "Aimbot", Description = "Disabled", Time = 2 })
         end
-    end,
+    end
 })
 
-aimbotGroup:AddDropdown("AimbotTarget", {
-    Text = "Target Mode",
-    Default = "Mobs",
+Tabs.Combat:CreateDropdown("AimbotTarget", {
+    Title = "Target Mode",
+    Description = "What type of entities to target.",
     Values = {"Mobs", "Players", "Both"},
-    Tooltip = "What type of entities to target. Mobs = zombies/monsters, Players = other players, Both = either.",
+    Default = "Mobs",
+    Multi = false
 })
 
-aimbotGroup:AddDropdown("AimbotPart", {
-    Text = "Aim Part",
-    Default = "Head",
+Tabs.Combat:CreateDropdown("AimbotPart", {
+    Title = "Aim Part",
+    Description = "Which body part to aim at.",
     Values = {"Head", "HumanoidRootPart", "Torso", "UpperTorso"},
-    Tooltip = "Which body part to aim at. Head = headshots, HumanoidRootPart = center mass.",
+    Default = "Head",
+    Multi = false
 })
 
-aimbotGroup:AddDropdown("AimbotPriority", {
-    Text = "Target Priority",
-    Default = "Distance",
+Tabs.Combat:CreateDropdown("AimbotPriority", {
+    Title = "Target Priority",
+    Description = "How to choose aim targets.",
     Values = {"Distance", "FOV"},
-    Tooltip = "How to choose which target to aim at. Distance = closest in 3D space, FOV = closest to crosshair.",
+    Default = "Distance",
+    Multi = false
 })
 
-aimbotGroup:AddSlider("AimbotRange", {
-    Text = "Max Range",
-    Default = 200,
+Tabs.Combat:CreateSlider("AimbotRange", {
+    Title = "Max Range",
+    Description = "Maximum distance to search for targets.",
     Min = 50,
     Max = 1000,
+    Default = 200,
     Rounding = 0,
-    Suffix = " studs",
-    Tooltip = "Maximum distance to search for targets.",
+    Suffix = " studs"
 })
 
-aimbotGroup:AddSlider("AimbotFOV", {
-    Text = "FOV Radius",
-    Default = 100,
+Tabs.Combat:CreateSlider("AimbotFOV", {
+    Title = "FOV Radius",
+    Description = "Maximum distance from screen center to target.",
     Min = 10,
     Max = 500,
+    Default = 100,
     Rounding = 0,
-    Suffix = " px",
-    Tooltip = "Maximum distance from screen center to consider targets. Lower = more precise, higher = wider aim.",
+    Suffix = " px"
 })
 
-aimbotGroup:AddSlider("AimbotSmoothness", {
-    Text = "Smoothness",
-    Default = 0.3,
+Tabs.Combat:CreateSlider("AimbotSmoothness", {
+    Title = "Smoothness",
+    Description = "0 = instant snap, 1 = very smooth tracking.",
     Min = 0,
     Max = 1,
-    Rounding = 2,
-    Tooltip = "0 = instant snap, 1 = very smooth tracking. Higher = more legit-looking.",
+    Default = 0.3,
+    Rounding = 2
 })
 
-aimbotGroup:AddToggle("AimbotPrediction", {
-    Text = "Velocity Prediction",
-    Default = false,
-    Tooltip = "Predict where moving targets will be based on their velocity.",
+Tabs.Combat:CreateToggle("AimbotPrediction", {
+    Title = "Velocity Prediction",
+    Description = "Predict where targets will be based on velocity.",
+    Default = false
 })
 
-aimbotGroup:AddSlider("AimbotPredictionAmount", {
-    Text = "Prediction Amount",
-    Default = 0.15,
+Tabs.Combat:CreateSlider("AimbotPredictionAmount", {
+    Title = "Prediction Amount",
+    Description = "How far ahead to predict.",
     Min = 0.05,
     Max = 0.5,
+    Default = 0.15,
     Rounding = 2,
-    Suffix = " s",
-    Tooltip = "How far ahead to predict. Higher = more prediction for fast-moving targets.",
+    Suffix = " s"
 })
 
-aimbotGroup:AddDivider()
-
-aimbotGroup:AddToggle("AimbotFOVCircle", {
-    Text = "FOV Circle",
-    Default = false,
-    Tooltip = "Draw a circle on screen showing the current Aimbot FOV radius.",
+Tabs.Combat:CreateToggle("AimbotFOVCircle", {
+    Title = "FOV Circle",
+    Description = "Draw a circle showing Aimbot FOV radius.",
+    Default = false
 })
-
 end
 
 do
-local autoPickupGroup = Tabs.Exploits:AddLeftGroupbox("Auto Pickup", "magnet")
+-- Exploits Tab
+Tabs.Exploits:CreateParagraph("AutoPickupHeader", {
+    Title = "Auto Pickup",
+    Content = "Automatically collect dropped items"
+})
 
-autoPickupGroup:AddToggle("AutoPickup", {
-    Text = "Auto Pickup",
+Tabs.Exploits:CreateToggle("AutoPickup", {
+    Title = "Auto Pickup",
+    Description = "Automatically picks up items within radius.",
     Default = false,
-    Tooltip = "Automatically picks up items within radius. Uses up to 4 FE methods in parallel.",
     Callback = function(state)
         if state then
             startAutoPickup()
-            Library:Notify({ Title = "Auto Pickup", Description = "Active â€“ " .. (Options.AutoPickupRadius and Options.AutoPickupRadius.Value or 20) .. " stud radius", Time = 2 })
+            Library:Notify({ Title = "Auto Pickup", Description = "Active – " .. (Options.AutoPickupRadius and Options.AutoPickupRadius.Value or 20) .. " stud radius", Time = 2 })
         else
             stopAutoPickup()
             Library:Notify({ Title = "Auto Pickup", Description = "Stopped", Time = 2 })
         end
-    end,
+    end
 })
 
-autoPickupGroup:AddSlider("AutoPickupRadius", {
-    Text = "Radius",
-    Default = 20,
+Tabs.Exploits:CreateSlider("AutoPickupRadius", {
+    Title = "Radius",
+    Description = "How far away items are picked up.",
     Min = 5,
     Max = 35,
+    Default = 20,
     Rounding = 0,
-    Suffix = " studs",
-    Tooltip = "How far away items are picked up. Combine methods A+B+C for best coverage at range.",
+    Suffix = " studs"
 })
 
-autoPickupGroup:AddToggle("AutoPickupAll", {
-    Text = "All Items",
-    Default = false,
-    Tooltip = "Pick up every item in the folder. Disable to use the whitelist filter below.",
+Tabs.Exploits:CreateToggle("AutoPickupAll", {
+    Title = "All Items",
+    Description = "Pick up every item in the folder. Disable to use whitelist.",
+    Default = false
 })
 
-autoPickupGroup:AddDivider()
-autoPickupGroup:AddLabel("FE Methods (combine to test)", { DoesWrap = true })
-
-autoPickupGroup:AddToggle("AutoPickupMethodRemote", {
-    Text = "A â€“ Remote (PickUpItem)",
-    Default = true,
-    Tooltip = "FireServer on Remotes.Interaction.PickUpItem + AdjustBackpack. Fast, works when server has no strict distance check.",
+Tabs.Exploits:CreateParagraph("AutoPickupMethodsHeader", {
+    Title = "FE Methods",
+    Content = "Combine methods A+B+C for best coverage"
 })
 
-autoPickupGroup:AddToggle("AutoPickupMethodTouch", {
-    Text = "B â€“ Touch Simulate",
-    Default = true,
-    Tooltip = "firetouchinterest(HRP, itemPart) â€“ simulates the player touching the item part. Fires server-side Touched handlers.",
+Tabs.Exploits:CreateToggle("AutoPickupMethodRemote", {
+    Title = "A – Remote (PickUpItem)",
+    Description = "Fast, works when server has no strict distance check.",
+    Default = true
 })
 
-autoPickupGroup:AddToggle("AutoPickupMethodPrompt", {
-    Text = "C â€“ ProximityPrompt",
-    Default = true,
-    Tooltip = "fireproximityprompt(prompt) â€“ fires the item's ProximityPrompt if one exists. Useful for items using prompt-based pickup.",
+Tabs.Exploits:CreateToggle("AutoPickupMethodTouch", {
+    Title = "B – Touch Simulate",
+    Description = "Fires server-side Touched handlers.",
+    Default = true
 })
 
-autoPickupGroup:AddDivider()
-autoPickupGroup:AddLabel("Item Whitelist (when All Items is off)")
-autoPickupGroup:AddDropdown("AutoPickupWhitelist", {
+Tabs.Exploits:CreateToggle("AutoPickupMethodPrompt", {
+    Title = "C – ProximityPrompt",
+    Description = "Fires the item's ProximityPrompt.",
+    Default = true
+})
+
+Tabs.Exploits:CreateDropdown("AutoPickupWhitelist", {
+    Title = "Item Whitelist",
+    Description = "Items to pick up. Only active when 'All Items' is disabled.",
     Values = itemNames,
-    Default = 1,
-    Multi = true,
-    Text = "Whitelist",
-    Tooltip = "Items to pick up. Only active when 'All Items' is disabled.",
-    Searchable = true,
+    Default = { itemNames[1] },
+    Multi = true
 })
 
-autoPickupGroup:AddDivider()
-autoPickupGroup:AddLabel("Blacklist (blocks PickUpItem remote)")
-autoPickupGroup:AddDropdown("AutoPickupBlacklist", {
+Tabs.Exploits:CreateDropdown("AutoPickupBlacklist", {
+    Title = "Blacklist",
+    Description = "Blacklisted items skip the PickUpItem remote.",
     Values = itemNames,
     Default = {
         "Chips", "Carrot", "Bloxiade", "Beans", "MRE", "Bloxy Cola",
@@ -3252,20 +3366,20 @@ autoPickupGroup:AddDropdown("AutoPickupBlacklist", {
         "Reactor Component", "Refined Metal", "Satellite Dish", "Scrap", "Screws",
         "Spatula", "Tray", "TV", "Watch", "Zombie Heart",
         "Airstrike", "Attack Order", "Call of the Dead", "Summon Brute",
-        "Summon Zombies", "Taunt", "The Future", "The Past", "The Present",
+        "Summon Zombies", "Taunt", "The Future", "The Past", "The Present"
     },
-    Multi = true,
-    Text = "Blacklist",
-    Tooltip = "Blacklisted items skip the PickUpItem remote. AdjustBackpack still fires so they are stored. Pre-selected: all items not in the Bring Pickup filter (Food, Fuel, Resources, Misc, Abilities).",
-    Searchable = true,
+    Multi = true
 })
 
-local autoDeliverGroup = Tabs.Exploits:AddLeftGroupbox("Auto Deliver Items", "truck")
+Tabs.Exploits:CreateParagraph("AutoDeliverHeader", {
+    Title = "Auto Deliver Items",
+    Content = "Teleport items directly to Generator & Shredder"
+})
 
-autoDeliverGroup:AddToggle("AutoDeliver", {
-    Text = "Auto Deliver Items",
+Tabs.Exploits:CreateToggle("AutoDeliver", {
+    Title = "Auto Deliver Items",
+    Description = "Teleport approached Fuel to Generator and Resources to Shredder.",
     Default = false,
-    Tooltip = "Automatically teleports approached Fuel to Generator and Resource/Scrap to Shredder.",
     Callback = function(state)
         if state then
             startAutoDeliver()
@@ -3274,25 +3388,28 @@ autoDeliverGroup:AddToggle("AutoDeliver", {
             stopAutoDeliver()
             Library:Notify({ Title = "Auto Deliver Items", Description = "Stopped", Time = 2 })
         end
-    end,
+    end
 })
 
-autoDeliverGroup:AddSlider("AutoDeliverRadius", {
-    Text = "Radius",
-    Default = 20,
+Tabs.Exploits:CreateSlider("AutoDeliverRadius", {
+    Title = "Radius",
+    Description = "Radius within which items are detected and delivered.",
     Min = 5,
     Max = 35,
+    Default = 20,
     Rounding = 0,
-    Suffix = " studs",
-    Tooltip = "Radius within which items are detected and delivered.",
+    Suffix = " studs"
 })
 
-local bringPickupGroup = Tabs.Exploits:AddRightGroupbox("Bring Pickup Item", "download")
+Tabs.Exploits:CreateParagraph("BringPickupHeader", {
+    Title = "Bring Pickup Item",
+    Content = "Teleport items to inventory"
+})
 
-bringPickupGroup:AddToggle("BringPickupItem", {
-    Text = "Bring Pickup Item",
+Tabs.Exploits:CreateToggle("BringPickupItem", {
+    Title = "Bring Pickup Item",
+    Description = "Loop-teleports to E-key items. Stops when full.",
     Default = false,
-    Tooltip = "Loop-teleports to E-key items (Guns, Medical, Ammo, Armor...). Stops automatically when full.",
     Callback = function(state)
         if state then
             startBringPickup()
@@ -3301,81 +3418,88 @@ bringPickupGroup:AddToggle("BringPickupItem", {
             stopBringPickup()
             Library:Notify({ Title = "Bring Pickup Item", Description = "Disabled", Time = 2 })
         end
-    end,
+    end
 })
 
-bringPickupGroup:AddToggle("BringAllPickup", {
-    Text = "All Pickup Items",
-    Default = false,
-    Tooltip = "Pick up all E-key items without a filter.",
+Tabs.Exploits:CreateToggle("BringAllPickup", {
+    Title = "All Pickup Items",
+    Description = "Pick up all E-key items without filter.",
+    Default = false
 })
 
-bringPickupGroup:AddDropdown("BringPickupSortOrder", {
+Tabs.Exploits:CreateDropdown("BringPickupSortOrder", {
+    Title = "Sort Order",
+    Description = "Sets which items are picked up first.",
     Values = {"Nearest First", "Farthest First", "Alphabetical", "Reverse Alphabetical"},
-    Default = 1,
-    Text = "Sort Order",
-    Tooltip = "Sets which items are picked up first.",
+    Default = "Nearest First",
+    Multi = false
 })
 
-bringPickupGroup:AddDivider()
-bringPickupGroup:AddLabel("Filter (" .. #pickupItemNames .. " Items)")
-bringPickupGroup:AddDropdown("BringPickupWhitelist", {
+Tabs.Exploits:CreateDropdown("BringPickupWhitelist", {
+    Title = "Item Filter",
+    Description = "Only active when 'All Pickup Items' is off.",
     Values = pickupItemNames,
-    Default = 1,
-    Multi = true,
-    Text = "Item Filter",
-    Tooltip = "Only active when 'All Pickup Items' is off.",
-    Searchable = true,
+    Default = { pickupItemNames[1] },
+    Multi = true
 })
 
-local repairAuraGroup = Tabs.Exploits:AddRightGroupbox("Repair Aura", "wrench")
+Tabs.Exploits:CreateParagraph("RepairAuraHeader", {
+    Title = "Repair Aura",
+    Content = "Automatically repairs structures"
+})
 
-repairAuraGroup:AddToggle("RepairAura", {
-    Text = "Repair Aura",
+Tabs.Exploits:CreateToggle("RepairAura", {
+    Title = "Repair Aura",
+    Description = "Automatically repairs structures in range. Repair Hammer must be equipped.",
     Default = false,
-    Tooltip = "Automatically repairs structures within range. Repair Hammer must be equipped.",
     Callback = function(state)
         if state then
             startRepairAura()
-            Library:Notify({ Title = "Repair Aura", Description = "Active â€“ repairing structures within " .. (Options.RepairAuraRange and Options.RepairAuraRange.Value or 30) .. " studs", Time = 2 })
+            Library:Notify({ Title = "Repair Aura", Description = "Active – repairing structures within " .. (Options.RepairAuraRange and Options.RepairAuraRange.Value or 30) .. " studs", Time = 2 })
         else
             stopRepairAura()
             Library:Notify({ Title = "Repair Aura", Description = "Stopped", Time = 2 })
         end
-    end,
+    end
 })
 
-repairAuraGroup:AddSlider("RepairAuraRange", {
-    Text = "Range",
-    Default = 30,
+Tabs.Exploits:CreateSlider("RepairAuraRange", {
+    Title = "Range",
+    Description = "Maximum distance to structures.",
     Min = 5,
     Max = 30,
+    Default = 30,
     Rounding = 0,
-    Suffix = " studs",
-    Tooltip = "Maximum distance to structures that will be repaired.",
+    Suffix = " studs"
 })
 
-repairAuraGroup:AddSlider("RepairAuraRate", {
-    Text = "Rate",
-    Default = 1,
+Tabs.Exploits:CreateSlider("RepairAuraRate", {
+    Title = "Rate",
+    Description = "How many repair remote fires per second.",
     Min = 1,
     Max = 10,
+    Default = 1,
     Rounding = 0,
-    Suffix = "/s",
-    Tooltip = "How many repair remote fires per second (1 = minimum, 10 = maximum).",
+    Suffix = "/s"
 })
 
-repairAuraGroup:AddLabel("Requires: Repair Hammer equipped", { DoesWrap = true })
-
+Tabs.Exploits:CreateParagraph("RepairAuraInfo", {
+    Title = "Requirements",
+    Content = "Repair Hammer must be equipped in hand."
+})
 end
 
 do
-local utilityGroup = Tabs.Misc:AddLeftGroupbox("Utilities", "shield-check")
+-- Misc Tab
+Tabs.Misc:CreateParagraph("UtilitiesHeader", {
+    Title = "Utilities",
+    Content = "Useful gameplay toggles"
+})
 
-utilityGroup:AddToggle("AntiAFK", {
-    Text = "Anti-AFK",
+Tabs.Misc:CreateToggle("AntiAFK", {
+    Title = "Anti-AFK",
+    Description = "Prevents the game from kicking you for being idle.",
     Default = true,
-    Tooltip = "Prevents the game from kicking you for being idle",
     Callback = function(state)
         if state then
             startAntiAFK()
@@ -3384,13 +3508,13 @@ utilityGroup:AddToggle("AntiAFK", {
             stopAntiAFK()
             Library:Notify({ Title = "Anti-AFK", Description = "Disabled", Time = 2 })
         end
-    end,
+    end
 })
 
-utilityGroup:AddToggle("Fullbright", {
-    Text = "Fullbright",
+Tabs.Misc:CreateToggle("Fullbright", {
+    Title = "Fullbright",
+    Description = "Brightens the game world.",
     Default = false,
-    Tooltip = "Brightens the game world by modifying lighting properties. Restores originals when disabled.",
     Callback = function(state)
         if state then
             enableFullbright()
@@ -3399,79 +3523,94 @@ utilityGroup:AddToggle("Fullbright", {
             disableFullbright()
             Library:Notify({ Title = "Fullbright", Description = "Disabled - original lighting restored", Time = 2 })
         end
-    end,
+    end
 })
 
-utilityGroup:AddToggle("RemoveFog", {
-    Text = "Remove Fog",
+Tabs.Misc:CreateToggle("RemoveFog", {
+    Title = "Remove Fog",
+    Description = "Removes visual fog for clear view.",
     Default = false,
-    Tooltip = "Removes visual fog for clear long-distance visibility. Restores original fog when disabled.",
     Callback = function(state)
         if state then
             enableRemoveFog()
-            Library:Notify({ Title = "Remove Fog", Description = "Enabled - fog removed for clear visibility", Time = 2 })
+            Library:Notify({ Title = "Remove Fog", Description = "Enabled - fog removed", Time = 2 })
         else
             disableRemoveFog()
-            Library:Notify({ Title = "Remove Fog", Description = "Disabled - original fog restored", Time = 2 })
+            Library:Notify({ Title = "Remove Fog", Description = "Disabled - fog restored", Time = 2 })
         end
-    end,
+    end
 })
 
-local serverGroup = Tabs.Misc:AddRightGroupbox("Server Tools", "server")
+Tabs.Misc:CreateParagraph("ServerToolsHeader", {
+    Title = "Server Tools",
+    Content = "Matchmaking and server options"
+})
 
-serverGroup:AddButton("Server Hop", function()
-    Library:Notify({ Title = "Server Hop", Description = "Finding new server...", Time = 2 })
-    serverHop()
-end)
+Tabs.Misc:CreateButton({
+    Title = "Server Hop",
+    Description = "Hop to another server.",
+    Callback = function()
+        Library:Notify({ Title = "Server Hop", Description = "Finding new server...", Time = 2 })
+        serverHop()
+    end
+})
 
-serverGroup:AddButton("Rejoin Server", function()
-    Library:Notify({ Title = "Rejoin", Description = "Rejoining server...", Time = 2 })
-    rejoinServer()
-end)
+Tabs.Misc:CreateButton({
+    Title = "Rejoin Server",
+    Description = "Rejoin the current server.",
+    Callback = function()
+        Library:Notify({ Title = "Rejoin", Description = "Rejoining server...", Time = 2 })
+        rejoinServer()
+    end
+})
 
-serverGroup:AddDivider()
-serverGroup:AddLabel("Current Job ID:")
-serverGroup:AddLabel("JobId", { Text = game.JobId ~= "" and game.JobId:sub(1, 30) .. "..." or "Unknown", DoesWrap = true })
+Tabs.Misc:CreateParagraph("JobIDParagraph", {
+    Title = "Job ID",
+    Content = game.JobId ~= "" and game.JobId or "Unknown"
+})
 
-local remoteSpyGroup = Tabs.Misc:AddRightGroupbox("Remote Spy", "bug")
+Tabs.Misc:CreateParagraph("RemoteSpyHeader", {
+    Title = "Remote Spy",
+    Content = "Log Remote calls to console"
+})
 
-remoteSpyGroup:AddToggle("RemoteSpyEnabled", {
-    Text = "Enable Remote Spy",
+Tabs.Misc:CreateToggle("RemoteSpyEnabled", {
+    Title = "Enable Remote Spy",
+    Description = "Logs remote calls. F9 to view console.",
     Default = false,
-    Tooltip = "Logs all RemoteEvent/RemoteFunction calls for analysis.",
     Callback = function(state)
         if state then
             startRemoteSpy()
         else
             stopRemoteSpy()
         end
-    end,
+    end
 })
 
-remoteSpyGroup:AddLabel("Logs remote calls to console.")
-remoteSpyGroup:AddLabel("Check Developer Console (F9)")
+Tabs.Misc:CreateParagraph("FPSUnlockerHeader", {
+    Title = "FPS Unlocker",
+    Content = "Customize your FPS limits"
+})
 
-local fpsUnlockerGroup = Tabs.Misc:AddRightGroupbox("FPS Unlocker", "zap")
-
-fpsUnlockerGroup:AddSlider("FPSCap", {
-    Text = "FPS Cap",
-    Default = 144,
+Tabs.Misc:CreateSlider("FPSCap", {
+    Title = "FPS Cap",
+    Description = "Target FPS cap.",
     Min = 30,
     Max = 360,
+    Default = 144,
     Rounding = 0,
     Suffix = " fps",
-    Tooltip = "Set the target FPS cap. Applied when Unlock FPS is enabled.",
     Callback = function(value)
         if Toggles.FPSUnlock and Toggles.FPSUnlock.Value then
             pcall(function() if setfpscap then setfpscap(value) end end)
         end
-    end,
+    end
 })
 
-fpsUnlockerGroup:AddToggle("FPSUnlock", {
-    Text = "Unlock FPS",
+Tabs.Misc:CreateToggle("FPSUnlock", {
+    Title = "Unlock FPS",
+    Description = "Remove default 60 FPS cap.",
     Default = false,
-    Tooltip = "Remove the default 60 FPS cap using setfpscap() executor API.",
     Callback = function(state)
         pcall(function()
             if setfpscap then
@@ -3484,12 +3623,22 @@ fpsUnlockerGroup:AddToggle("FPSUnlock", {
                     Library:Notify({ Title = "FPS Unlocker", Description = "FPS restored to 60", Time = 2 })
                 end
             else
-                Library:Notify({ Title = "FPS Unlocker", Description = "setfpscap() not available in this executor.", Time = 3 })
+                Library:Notify({ Title = "FPS Unlocker", Description = "setfpscap() not available.", Time = 3 })
             end
         end)
-    end,
+    end
 })
 
+local unloadCallbacks = {}
+function Library:OnUnload(callback)
+    table.insert(unloadCallbacks, callback)
+end
+
+local function performUnload()
+    for _, cb in ipairs(unloadCallbacks) do
+        pcall(cb)
+    end
+    Library:Unload()
 end
 
 Library:OnUnload(function()
@@ -3556,73 +3705,42 @@ Library:OnUnload(function()
 end)
 
 do
-local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu", "wrench")
-
-MenuGroup:AddToggle("KeybindMenuOpen", {
-    Default = Library.KeybindFrame.Visible,
-    Text = "Open Keybind Menu",
-    Callback = function(value)
-        Library.KeybindFrame.Visible = value
-    end,
+-- UI Settings Tab
+Tabs["UI Settings"]:CreateParagraph("MenuSettingsHeader", {
+    Title = "Menu Settings",
+    Content = "Interface layout options"
 })
 
-MenuGroup:AddToggle("ShowCustomCursor", {
-    Text = "Custom Cursor",
-    Default = true,
+Tabs["UI Settings"]:CreateKeybind("MenuKeybind", {
+    Title = "Menu Keybind",
+    Mode = "Toggle",
+    Default = "RightShift",
     Callback = function(Value)
-        Library.ShowCustomCursor = Value
-    end,
+        -- Handled natively by Fluent
+    end
 })
 
-MenuGroup:AddDropdown("NotificationSide", {
-    Values = { "Left", "Right" },
-    Default = "Right",
-    Text = "Notification Side",
-    Callback = function(Value)
-        Library:SetNotifySide(Value)
-    end,
+Tabs["UI Settings"]:CreateButton({
+    Title = "Unload Script",
+    Description = "Completely unloads the script and cleans up all connections",
+    Callback = function()
+        performUnload()
+    end
 })
-
-MenuGroup:AddDropdown("DPIDropdown", {
-    Values = { "50%", "75%", "100%", "125%", "150%", "175%", "200%" },
-    Default = "100%",
-    Text = "DPI Scale",
-    Callback = function(Value)
-        Value = Value:gsub("%%", "")
-        local DPI = tonumber(Value)
-        Library:SetDPIScale(DPI)
-    end,
-})
-
-MenuGroup:AddSlider("UICornerSlider", {
-    Text = "Corner Radius",
-    Default = Library.CornerRadius,
-    Min = 0,
-    Max = 20,
-    Rounding = 0,
-    Callback = function(value)
-        Window:SetCornerRadius(value)
-    end,
-})
-
-MenuGroup:AddDivider()
-MenuGroup:AddLabel("Menu bind")
-    :AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
-
 end
 
 Library.ToggleKeybind = Options.MenuKeybind
 
-ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
+InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
 
-ThemeManager:SetFolder("SPYMM")
+InterfaceManager:SetFolder("SPYMM")
 SaveManager:SetFolder("SPYMM/survive-the-apocalypse")
 
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
-ThemeManager:ApplyToTab(Tabs["UI Settings"])
+InterfaceManager:BuildInterfaceSection(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
 
 Library:Notify({ Title = "SPYMM v8.2", Description = "Loaded! Gun|Melee|Medical|Armor|Food|Resources\nRight Shift = toggle menu.", Time = 5 })
