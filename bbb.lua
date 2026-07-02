@@ -538,48 +538,67 @@ MainTab:Toggle({
 
             -- Robust function to locate the enemy across all stages
             local function findEnemy()
-                -- Method 1: Check standard client path
+                local function isValidEnemy(model)
+                    if not model or not model:IsA("Model") then return false end
+                    if not model:FindFirstChild("HumanoidRootPart") and not model.PrimaryPart then return false end
+                    
+                    -- Check if it is a player character
+                    for _, p in ipairs(game.Players:GetPlayers()) do
+                        if p.Character == model then return false end
+                    end
+                    
+                    -- Check if it is a known friendly NPC
+                    local name = model.Name:lower()
+                    if name:find("child") or name:find("kids") or name:find("crywoman") or name:find("npc") then
+                        return false
+                    end
+                    
+                    -- Check if it is in templates/storage/prefabs
+                    local p = model.Parent
+                    while p do
+                        local pName = p.Name:lower()
+                        if pName:find("template") or pName:find("storage") or pName:find("prefab") or pName:find("cache") or pName:find("pool") or pName:find("holding") then
+                            return false
+                        end
+                        p = p.Parent
+                    end
+                    
+                    return true
+                end
+
+                -- Method 1: Check standard client path (usually moving active enemy)
                 local clientEnemy = workspace:FindFirstChild("Client")
                 clientEnemy = clientEnemy and clientEnemy:FindFirstChild("Enemy")
                 clientEnemy = clientEnemy and clientEnemy:FindFirstChild("ClientEnemy")
                 local model = clientEnemy and clientEnemy:FindFirstChild("EnemyModel")
-                if model then return model end
+                if isValidEnemy(model) then return model end
 
                 -- Method 2: Check server path
                 local serverEnemy = workspace:FindFirstChild("Server")
                 serverEnemy = serverEnemy and serverEnemy:FindFirstChild("Enemy")
                 local sModel = serverEnemy and serverEnemy:FindFirstChild("Enemy")
-                if sModel then return sModel end
+                if isValidEnemy(sModel) then return sModel end
 
-                -- Method 3: Search recursively for known enemy names
+                -- Method 3: Search recursively for known enemy models
                 for _, name in ipairs({"EnemyModel", "EnemyModels", "ClientEnemy", "Enemy"}) do
-                    local found = workspace:FindFirstChild(name, true)
-                    if found then
-                        if found:IsA("Model") then
+                    for _, found in ipairs(workspace:GetChildren()) do
+                        if found.Name == name and isValidEnemy(found) then
                             return found
-                        elseif found:IsA("Folder") then
-                            for _, child in ipairs(found:GetChildren()) do
-                                if child:IsA("Model") then return child end
-                            end
+                        end
+                        local desc = found:FindFirstChild(name, true)
+                        if desc and isValidEnemy(desc) then
+                            return desc
                         end
                     end
                 end
 
                 -- Method 4: Scan workspace for any Model containing a Humanoid that is not a player or friendly NPC
                 for _, desc in ipairs(workspace:GetDescendants()) do
-                    if desc:IsA("Model") and desc:FindFirstChildOfClass("Humanoid") then
-                        local isPlayer = false
-                        for _, p in ipairs(game.Players:GetPlayers()) do
-                            if p.Character == desc then
-                                isPlayer = true
-                                break
-                            end
-                        end
-                        if not isPlayer and desc.Name ~= "Child" and desc.Name ~= "KidsNPC" and desc.Name ~= "CryWoman_C" and desc.Name ~= "OohiromaKids" and desc.Name ~= "NPC" then
-                            return desc
-                        end
+                    if isValidEnemy(desc) and desc:FindFirstChildOfClass("Humanoid") then
+                        return desc
                     end
                 end
+
                 return nil
             end
 
@@ -610,113 +629,49 @@ MainTab:Toggle({
                 
                 -- Teleport to enemy automatically
                 if currentEnemy then
-                    -- Get latest enemy position and facing direction
                     local currentEnemyPosition
                     local enemyLookVector
-                    local enemyHeight = 0
                     
-                    -- Find HumanoidRootPart or main part of enemy
                     if currentEnemy:FindFirstChild("HumanoidRootPart") then
                         local enemyRootPart = currentEnemy.HumanoidRootPart
                         currentEnemyPosition = enemyRootPart.Position
                         enemyLookVector = enemyRootPart.CFrame.LookVector
-                        
-                        local humanoid = currentEnemy:FindFirstChildOfClass("Humanoid")
-                        if humanoid then
-                            enemyHeight = humanoid.HipHeight * 2
-                        end
                     elseif typeof(currentEnemy.GetPivot) == "function" then
                         local enemyCFrame = currentEnemy:GetPivot()
                         currentEnemyPosition = enemyCFrame.Position
                         enemyLookVector = enemyCFrame.LookVector
-                        
-                        if currentEnemy:IsA("Model") then
-                            enemyHeight = currentEnemy:GetExtentsSize().Y / 2
-                        end
-                    elseif currentEnemy:IsA("BasePart") then
-                        currentEnemyPosition = currentEnemy.Position
-                        enemyLookVector = currentEnemy.CFrame.LookVector
-                        enemyHeight = currentEnemy.Size.Y / 2
-                    else
-                        -- Try to find main part of enemy and get height
-                        for _, child in pairs(currentEnemy:GetDescendants()) do
-                            if child:IsA("BasePart") and (child.Name:lower():find("head")) then
-                                currentEnemyPosition = child.Position
-                                enemyLookVector = child.CFrame.LookVector
-                                enemyHeight = child.Size.Y * 0.8
-                                break
-                            elseif child:IsA("BasePart") and (child.Name:lower():find("torso") or child.Name:lower():find("upper")) then
-                                currentEnemyPosition = child.Position
-                                enemyLookVector = child.CFrame.LookVector
-                                enemyHeight = child.Size.Y
-                                break
-                            elseif child:IsA("BasePart") and child.Name:lower():find("root") then
-                                currentEnemyPosition = child.Position
-                                enemyLookVector = child.CFrame.LookVector
-                                break
-                            end
-                        end
-                        
-                        if not currentEnemyPosition then
-                            for _, child in pairs(currentEnemy:GetDescendants()) do
-                                if child:IsA("BasePart") then
-                                    currentEnemyPosition = child.Position
-                                    enemyLookVector = child.CFrame.LookVector
-                                    enemyHeight = child.Size.Y / 2
-                                    break
-                                end
-                            end
-                        end
-                    end
-                    
-                    if enemyHeight < 1 then
-                        enemyHeight = 5
                     end
                     
                     if currentEnemyPosition and enemyLookVector then
+                        -- Check if the enemy is in the playable area (not high in sky holding area or void)
+                        local heightDiff = math.abs(currentEnemyPosition.Y - rootPart.Position.Y)
+                        local isSafeToTeleport = (heightDiff < 80)
+                        
                         -- Check enemy distance from ofuda box
                         local ofudaBox = workspace.Server.SpawnedItems:FindFirstChild("OfudaBox2")
-                        local isSafeToTeleport = true
-                        
-                        if ofudaBox then
-                            local ofudaBoxPosition
-                            
-                            if typeof(ofudaBox.GetPivot) == "function" then
-                                ofudaBoxPosition = ofudaBox:GetPivot().Position
-                            elseif ofudaBox:IsA("BasePart") then
-                                ofudaBoxPosition = ofudaBox.Position
-                            else
-                                for _, child in pairs(ofudaBox:GetDescendants()) do
-                                    if child:IsA("BasePart") then
-                                        ofudaBoxPosition = child.Position
-                                        break
-                                    end
-                                end
-                            end
-                            
-                            if ofudaBoxPosition then
-                                local distanceToOfudaBox = (currentEnemyPosition - ofudaBoxPosition).Magnitude
-                                if distanceToOfudaBox < 20 then
-                                    isSafeToTeleport = false
-                                    if not getgenv().WarningShown then
-                                        notify{
-                                            Title = "Warning",
-                                            Content = "PetaPeta is near the Ofuda Box. Waiting for the enemy to move away from the Ofuda Box Room",
-                                            Duration = 3
-                                        }
-                                        getgenv().WarningShown = true
-                                        task.delay(5, function()
-                                            getgenv().WarningShown = false
-                                        end)
-                                    end
+                        if isSafeToTeleport and ofudaBox then
+                            local ofudaBoxPosition = ofudaBox:GetPivot().Position
+                            local distanceToOfudaBox = (currentEnemyPosition - ofudaBoxPosition).Magnitude
+                            if distanceToOfudaBox < 20 then
+                                isSafeToTeleport = false
+                                if not getgenv().WarningShown then
+                                    notify{
+                                        Title = "Warning",
+                                        Content = "PetaPeta is near the Ofuda Box. Waiting for the enemy to move away from the Ofuda Box Room",
+                                        Duration = 3
+                                    }
+                                    getgenv().WarningShown = true
+                                    task.delay(5, function()
+                                        getgenv().WarningShown = false
+                                    end)
                                 end
                             end
                         end
                         
                         if isSafeToTeleport then
-                            local distanceFromEnemy = -25
+                            local distanceFromEnemy = 3 -- 3 studs behind the enemy to stay close and avoid clipping outside the building
                             local targetPosition = currentEnemyPosition - (enemyLookVector * distanceFromEnemy)
-                            targetPosition = Vector3.new(targetPosition.X, currentEnemyPosition.Y + (enemyHeight * 0.67), targetPosition.Z)
+                            targetPosition = Vector3.new(targetPosition.X, currentEnemyPosition.Y, targetPosition.Z)
                             rootPart.CFrame = CFrame.new(targetPosition, currentEnemyPosition)
                             task.wait(0.03)
                         end
@@ -1660,27 +1615,55 @@ MainTab:Button({
         end
 
         local function findItem(itemName)
-            local item = workspace.Server.SpawnedItems:FindFirstChild(itemName)
-            if not item then
+            local namesToTry = {itemName}
+            if itemName == "Warifu" then
+                table.insert(namesToTry, "Wooden Key")
+                table.insert(namesToTry, "WoodenKey")
+                table.insert(namesToTry, "Wooden_Key")
+            elseif itemName == "Ofuda" then
+                table.insert(namesToTry, "Talisman")
+            elseif itemName == "Talisman" then
+                table.insert(namesToTry, "Ofuda")
+            end
+            
+            for _, name in ipairs(namesToTry) do
+                local spawned = workspace:FindFirstChild("Server")
+                spawned = spawned and spawned:FindFirstChild("SpawnedItems")
+                if spawned then
+                    local item = spawned:FindFirstChild(name)
+                    if item then return item end
+                end
+                
                 for _, desc in ipairs(workspace:GetDescendants()) do
-                    if desc.Name == itemName and (desc:IsA("Model") or desc:IsA("BasePart")) then
+                    if desc.Name == name and (desc:IsA("Model") or desc:IsA("BasePart") or desc:IsA("Tool")) then
                         if not desc:IsDescendantOf(player.Character) and not desc:IsDescendantOf(player.Backpack) then
-                            item = desc
-                            break
+                            return desc
                         end
                     end
                 end
             end
-            return item
+            return nil
         end
 
         local function pickupItem(item)
             if not item then return false end
-            for i = 1, 10 do
+            
+            local prompt = item:FindFirstChildOfClass("ProximityPrompt") or item:FindFirstChildWhichIsA("ProximityPrompt", true)
+            local targetPart = prompt and prompt.Parent
+            if not targetPart or not targetPart:IsA("BasePart") then
+                targetPart = item:IsA("BasePart") and item or item:FindFirstChildWhichIsA("BasePart", true)
+            end
+            
+            if not targetPart then
+                targetPart = item
+            end
+            
+            for i = 1, 15 do
                 if not item:IsDescendantOf(workspace) then return true end
-                rootPart.CFrame = item:GetPivot() + Vector3.new(0, 2, 0)
+                
+                rootPart.CFrame = targetPart:GetPivot() + Vector3.new(0, 1.5, 0)
                 task.wait(0.1)
-                local prompt = item:FindFirstChildOfClass("ProximityPrompt") or item:FindFirstChildWhichIsA("ProximityPrompt", true)
+                
                 if prompt then
                     if fireproximityprompt then
                         fireproximityprompt(prompt)
@@ -1901,27 +1884,55 @@ MainTab:Button({
         end
 
         local function findItem(itemName)
-            local item = workspace.Server.SpawnedItems:FindFirstChild(itemName)
-            if not item then
+            local namesToTry = {itemName}
+            if itemName == "Warifu" then
+                table.insert(namesToTry, "Wooden Key")
+                table.insert(namesToTry, "WoodenKey")
+                table.insert(namesToTry, "Wooden_Key")
+            elseif itemName == "Ofuda" then
+                table.insert(namesToTry, "Talisman")
+            elseif itemName == "Talisman" then
+                table.insert(namesToTry, "Ofuda")
+            end
+            
+            for _, name in ipairs(namesToTry) do
+                local spawned = workspace:FindFirstChild("Server")
+                spawned = spawned and spawned:FindFirstChild("SpawnedItems")
+                if spawned then
+                    local item = spawned:FindFirstChild(name)
+                    if item then return item end
+                end
+                
                 for _, desc in ipairs(workspace:GetDescendants()) do
-                    if desc.Name == itemName and (desc:IsA("Model") or desc:IsA("BasePart")) then
+                    if desc.Name == name and (desc:IsA("Model") or desc:IsA("BasePart") or desc:IsA("Tool")) then
                         if not desc:IsDescendantOf(player.Character) and not desc:IsDescendantOf(player.Backpack) then
-                            item = desc
-                            break
+                            return desc
                         end
                     end
                 end
             end
-            return item
+            return nil
         end
 
         local function pickupItem(item)
             if not item then return false end
-            for i = 1, 10 do
+            
+            local prompt = item:FindFirstChildOfClass("ProximityPrompt") or item:FindFirstChildWhichIsA("ProximityPrompt", true)
+            local targetPart = prompt and prompt.Parent
+            if not targetPart or not targetPart:IsA("BasePart") then
+                targetPart = item:IsA("BasePart") and item or item:FindFirstChildWhichIsA("BasePart", true)
+            end
+            
+            if not targetPart then
+                targetPart = item
+            end
+            
+            for i = 1, 15 do
                 if not item:IsDescendantOf(workspace) then return true end
-                rootPart.CFrame = item:GetPivot() + Vector3.new(0, 2, 0)
+                
+                rootPart.CFrame = targetPart:GetPivot() + Vector3.new(0, 1.5, 0)
                 task.wait(0.1)
-                local prompt = item:FindFirstChildOfClass("ProximityPrompt") or item:FindFirstChildWhichIsA("ProximityPrompt", true)
+                
                 if prompt then
                     if fireproximityprompt then
                         fireproximityprompt(prompt)
