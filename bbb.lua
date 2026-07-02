@@ -1530,7 +1530,7 @@ MainTab:Button({
                 Title = "Teleport Failed",
                 Content = "Could not find Finish Line in the specified path",
                 Duration = 3
-            end
+            }
         end
     end
 })
