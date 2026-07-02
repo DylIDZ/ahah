@@ -631,15 +631,28 @@ MainTab:Toggle({
                 if currentEnemy then
                     local currentEnemyPosition
                     local enemyLookVector
+                    local enemyHeight = 0
                     
                     if currentEnemy:FindFirstChild("HumanoidRootPart") then
                         local enemyRootPart = currentEnemy.HumanoidRootPart
                         currentEnemyPosition = enemyRootPart.Position
                         enemyLookVector = enemyRootPart.CFrame.LookVector
+                        
+                        local humanoid = currentEnemy:FindFirstChildOfClass("Humanoid")
+                        if humanoid then
+                            enemyHeight = humanoid.HipHeight * 2
+                        end
                     elseif typeof(currentEnemy.GetPivot) == "function" then
                         local enemyCFrame = currentEnemy:GetPivot()
                         currentEnemyPosition = enemyCFrame.Position
                         enemyLookVector = enemyCFrame.LookVector
+                        if currentEnemy:IsA("Model") then
+                            enemyHeight = currentEnemy:GetExtentsSize().Y / 2
+                        end
+                    end
+                    
+                    if enemyHeight < 1 then
+                        enemyHeight = 5
                     end
                     
                     if currentEnemyPosition and enemyLookVector then
@@ -669,9 +682,9 @@ MainTab:Toggle({
                         end
                         
                         if isSafeToTeleport then
-                            local distanceFromEnemy = 3 -- 3 studs behind the enemy to stay close and avoid clipping outside the building
+                            local distanceFromEnemy = -25 -- 25 studs in front of the enemy
                             local targetPosition = currentEnemyPosition - (enemyLookVector * distanceFromEnemy)
-                            targetPosition = Vector3.new(targetPosition.X, currentEnemyPosition.Y, targetPosition.Z)
+                            targetPosition = Vector3.new(targetPosition.X, currentEnemyPosition.Y + (enemyHeight * 0.67), targetPosition.Z)
                             rootPart.CFrame = CFrame.new(targetPosition, currentEnemyPosition)
                             task.wait(0.03)
                         end
@@ -1658,13 +1671,21 @@ MainTab:Button({
                 targetPart = item
             end
             
+            -- Temporarily anchor player so they don't slide or fall away
+            local wasAnchored = rootPart.Anchored
+            rootPart.Anchored = true
+            
             for i = 1, 15 do
-                if not item:IsDescendantOf(workspace) then return true end
+                if not item:IsDescendantOf(workspace) then 
+                    rootPart.Anchored = wasAnchored
+                    return true 
+                end
                 
-                rootPart.CFrame = targetPart:GetPivot() + Vector3.new(0, 1.5, 0)
+                rootPart.CFrame = targetPart:GetPivot()
                 task.wait(0.1)
                 
                 if prompt then
+                    prompt.Enabled = true -- Force enable on client
                     if fireproximityprompt then
                         fireproximityprompt(prompt)
                     else
@@ -1675,6 +1696,7 @@ MainTab:Button({
                 end
                 task.wait(0.1)
             end
+            rootPart.Anchored = wasAnchored
             return not item:IsDescendantOf(workspace)
         end
 
@@ -1780,7 +1802,7 @@ MainTab:Button({
         task.wait(1.0)
 
         -- Find and pick up the KidsRoomKey
-        local key = findItem("KidsRoomKey") or findItem("Key")
+        local key = findItem("KidsRoomKey") or findItem("Key") or findItem("Warifu") or findItem("Wooden Key") or findItem("WoodenKey") or findItem("Wooden_Key")
         if key then
             notify{ Title = "Stage 7", Content = "Key found! Teleporting to pick up...", Duration = 2 }
             if pickupItem(key) then
@@ -1792,7 +1814,7 @@ MainTab:Button({
         task.wait(0.5)
 
         -- Equip the key
-        local backpackKey = player.Backpack:FindFirstChild("KidsRoomKey") or player.Backpack:FindFirstChild("Key")
+        local backpackKey = player.Backpack:FindFirstChild("KidsRoomKey") or player.Backpack:FindFirstChild("Key") or player.Backpack:FindFirstChild("Warifu") or player.Backpack:FindFirstChild("Wooden Key") or player.Backpack:FindFirstChild("WoodenKey") or player.Backpack:FindFirstChild("Wooden_Key")
         if backpackKey then
             backpackKey.Parent = character
             task.wait(0.2)
@@ -1927,13 +1949,21 @@ MainTab:Button({
                 targetPart = item
             end
             
+            -- Temporarily anchor player so they don't slide or fall away
+            local wasAnchored = rootPart.Anchored
+            rootPart.Anchored = true
+            
             for i = 1, 15 do
-                if not item:IsDescendantOf(workspace) then return true end
+                if not item:IsDescendantOf(workspace) then 
+                    rootPart.Anchored = wasAnchored
+                    return true 
+                end
                 
-                rootPart.CFrame = targetPart:GetPivot() + Vector3.new(0, 1.5, 0)
+                rootPart.CFrame = targetPart:GetPivot()
                 task.wait(0.1)
                 
                 if prompt then
+                    prompt.Enabled = true -- Force enable on client
                     if fireproximityprompt then
                         fireproximityprompt(prompt)
                     else
@@ -1944,6 +1974,7 @@ MainTab:Button({
                 end
                 task.wait(0.1)
             end
+            rootPart.Anchored = wasAnchored
             return not item:IsDescendantOf(workspace)
         end
 
