@@ -1530,6 +1530,230 @@ MainTab:Button({
                 Title = "Teleport Failed",
                 Content = "Could not find Finish Line in the specified path",
                 Duration = 3
+            end
+        end
+    end
+})
+
+-- Stage 7 Completion
+MainTab:Section({ Title = "Stage 7 Completion" })
+
+MainTab:Button({
+    Title = "Auto Complete Stage 7",
+    Desc = "Bypass all Stage 7 puzzles automatically",
+    Callback = function()
+        local player = game.Players.LocalPlayer
+        local character = player.Character
+        local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+
+        if not character or not rootPart then
+            notify{
+                Title = "Failed",
+                Content = "Player character not found",
+                Duration = 3
+            }
+            return
+        end
+
+        -- Step 1: Read combination from Workspace Attributes
+        local EtoData = require(game:GetService("ReplicatedStorage"):WaitForChild("GameConfig"):WaitForChild("EtoData"))
+        local combination = {}
+        for _, descendant in ipairs(workspace:GetDescendants()) do
+            local etoName = descendant:GetAttribute("HintEtoName")
+            local orderNum = descendant:GetAttribute("HintOrderNumber")
+            if etoName and orderNum then
+                for index, name in pairs(EtoData) do
+                    if name == etoName then
+                        combination[orderNum] = index
+                        break
+                    end
+                end
+            end
+        end
+
+        if #combination < 3 then
+            notify{
+                Title = "Failed",
+                Content = "Could not find all Stage 7 clues in workspace",
+                Duration = 3
+            }
+            return
+        end
+
+        -- Step 2: Locate Kinko (Safe) and open it
+        local kinkoModel = nil
+        for _, descendant in ipairs(workspace:GetDescendants()) do
+            if descendant.Name == "DialShelf" or descendant.Name == "KeySpawnPoint" then
+                kinkoModel = descendant.Parent
+                break
+            end
+        end
+        if not kinkoModel then
+            kinkoModel = workspace:FindFirstChild("Kinko", true)
+        end
+        if not kinkoModel then
+            notify{
+                Title = "Failed",
+                Content = "Kinko (Safe) model not found",
+                Duration = 3
+            }
+            return
+        end
+
+        notify{
+            Title = "Stage 7",
+            Content = "Opening Chest (Kinko) with code: " .. table.concat(combination, "-"),
+            Duration = 3
+        }
+        game:GetService("ReplicatedStorage").Stage7EtoDialEvent:FireServer(combination, kinkoModel)
+        task.wait(1.5)
+
+        -- Step 3: Locate and pick up KidsRoomKey / Key
+        local keyTool = nil
+        for i = 1, 30 do
+            keyTool = workspace.Server.SpawnedItems:FindFirstChild("KidsRoomKey") or 
+                      workspace.Server.SpawnedItems:FindFirstChild("Key") or
+                      workspace:FindFirstChild("KidsRoomKey", true) or
+                      workspace:FindFirstChild("Key", true)
+            if keyTool and keyTool:IsA("Tool") then
+                break
+            end
+            task.wait(0.2)
+        end
+        if not keyTool then
+            notify{
+                Title = "Failed",
+                Content = "KidsRoomKey / Key not found",
+                Duration = 3
+            }
+            return
+        end
+
+        rootPart.CFrame = CFrame.new(keyTool:GetPivot().Position + Vector3.new(0, 2, 0))
+        task.wait(0.2)
+
+        local prompt = keyTool:FindFirstChildOfClass("ProximityPrompt") or keyTool:FindFirstChildWhichIsA("ProximityPrompt", true)
+        if prompt then
+            for i = 1, 5 do
+                fireproximityprompt(prompt)
+                task.wait(0.1)
+                if keyTool.Parent == player.Backpack or keyTool.Parent == character then
+                    break
+                end
+            end
+        end
+
+        local hasKey = player.Backpack:FindFirstChild("KidsRoomKey") or character:FindFirstChild("KidsRoomKey") or
+                       player.Backpack:FindFirstChild("Key") or character:FindFirstChild("Key")
+        if not hasKey then
+            notify{
+                Title = "Warning",
+                Content = "Could not collect key automatically, please pick it up manually",
+                Duration = 3
+            }
+            return
+        end
+
+        -- Equip the key
+        local keyInInv = player.Backpack:FindFirstChild("KidsRoomKey") or player.Backpack:FindFirstChild("Key")
+        if keyInInv then
+            character:FindFirstChildOfClass("Humanoid"):EquipTool(keyInInv)
+            task.wait(0.3)
+        end
+
+        -- Step 4: Unlock Kids Room Lock
+        local lockModel = workspace:FindFirstChild("Lock", true)
+        if not lockModel then
+            notify{
+                Title = "Failed",
+                Content = "Lock for Kids Room not found",
+                Duration = 3
+            }
+            return
+        end
+
+        rootPart.CFrame = CFrame.new(lockModel:GetPivot().Position + Vector3.new(0, 0, 3))
+        task.wait(0.2)
+        notify{
+            Title = "Stage 7",
+            Content = "Unlocking Kids Room...",
+            Duration = 2
+        }
+        game:GetService("ReplicatedStorage").Stage7KidsRoomUnlockEvent:FireServer(lockModel)
+        task.wait(1.0)
+
+        -- Step 5: Interact with NPC to spawn Ofuda
+        local npcModel = workspace:FindFirstChild("KidsNPC", true) or 
+                         workspace:FindFirstChild("Child", true) or 
+                         workspace:FindFirstChild("CryWoman_C", true)
+        if not npcModel then
+            notify{
+                Title = "Failed",
+                Content = "Kids NPC not found",
+                Duration = 3
+            }
+            return
+        end
+
+        rootPart.CFrame = CFrame.new(npcModel:GetPivot().Position + Vector3.new(0, 0, 3))
+        task.wait(0.2)
+        notify{
+            Title = "Stage 7",
+            Content = "Triggering NPC to spawn Ofuda...",
+            Duration = 2
+        }
+        game:GetService("ReplicatedStorage").Stage7KidsInteractEvent:FireServer(npcModel)
+        task.wait(1.5)
+
+        -- Step 6: Locate and collect Ofuda
+        local ofuda = nil
+        for i = 1, 30 do
+            ofuda = workspace.Server.SpawnedItems:FindFirstChild("Ofuda") or 
+                    workspace.Server.SpawnedItems:FindFirstChild("Ofuda Onya") or
+                    workspace.Server.SpawnedItems:FindFirstChild("Talisman") or
+                    workspace:FindFirstChild("Ofuda", true) or
+                    workspace:FindFirstChild("Talisman", true)
+            if ofuda and ofuda:IsA("Tool") then
+                break
+            end
+            task.wait(0.2)
+        end
+        if not ofuda then
+            notify{
+                Title = "Failed",
+                Content = "Ofuda not found",
+                Duration = 3
+            }
+            return
+        end
+
+        rootPart.CFrame = CFrame.new(ofuda:GetPivot().Position + Vector3.new(0, 2, 0))
+        task.wait(0.2)
+        local ofudaPrompt = ofuda:FindFirstChildOfClass("ProximityPrompt") or ofuda:FindFirstChildWhichIsA("ProximityPrompt", true)
+        if ofudaPrompt then
+            for i = 1, 5 do
+                fireproximityprompt(ofudaPrompt)
+                task.wait(0.1)
+                if ofuda.Parent == player.Backpack or ofuda.Parent == character then
+                    break
+                end
+            end
+        end
+
+        -- Equip Ofuda
+        local ofudaInInv = player.Backpack:FindFirstChildWhichIsA("Tool")
+        if ofudaInInv and (string.match(ofudaInInv.Name:lower(), "ofuda") or string.match(ofudaInInv.Name:lower(), "talisman")) then
+            character:FindFirstChildOfClass("Humanoid"):EquipTool(ofudaInInv)
+            notify{
+                Title = "Stage 7 Complete",
+                Content = "Stage 7 completed successfully! Ofuda equipped.",
+                Duration = 5
+            }
+        else
+            notify{
+                Title = "Stage 7 Complete",
+                Content = "Stage 7 steps finished, please equip Ofuda manually",
+                Duration = 5
             }
         end
     end
