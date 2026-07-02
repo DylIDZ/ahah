@@ -500,10 +500,15 @@ MainTab:Toggle({
     Desc = "Teleport player to enemy (requires holding Ofuda)",
     Value = false,
     Callback = function(value)
+        -- Always clean up any existing loop first to prevent parallel loop execution
+        if getgenv().EnemyFollowLoop then
+            getgenv().EnemyFollowLoop:Disconnect()
+            getgenv().EnemyFollowLoop = nil
+        end
+
         teleportToEnemyState = value
         if teleportToEnemyState then
             -- Enable teleport to enemy
-            
             notify{
                 Title = "Follow Enemy",
                 Content = "Enemy following activated",
@@ -531,6 +536,53 @@ MainTab:Toggle({
                 }
             end
 
+            -- Robust function to locate the enemy across all stages
+            local function findEnemy()
+                -- Method 1: Check standard client path
+                local clientEnemy = workspace:FindFirstChild("Client")
+                clientEnemy = clientEnemy and clientEnemy:FindFirstChild("Enemy")
+                clientEnemy = clientEnemy and clientEnemy:FindFirstChild("ClientEnemy")
+                local model = clientEnemy and clientEnemy:FindFirstChild("EnemyModel")
+                if model then return model end
+
+                -- Method 2: Check server path
+                local serverEnemy = workspace:FindFirstChild("Server")
+                serverEnemy = serverEnemy and serverEnemy:FindFirstChild("Enemy")
+                local sModel = serverEnemy and serverEnemy:FindFirstChild("Enemy")
+                if sModel then return sModel end
+
+                -- Method 3: Search recursively for known enemy names
+                for _, name in ipairs({"EnemyModel", "EnemyModels", "ClientEnemy", "Enemy"}) do
+                    local found = workspace:FindFirstChild(name, true)
+                    if found then
+                        if found:IsA("Model") then
+                            return found
+                        elseif found:IsA("Folder") then
+                            for _, child in ipairs(found:GetChildren()) do
+                                if child:IsA("Model") then return child end
+                            end
+                        end
+                    end
+                end
+
+                -- Method 4: Scan workspace for any Model containing a Humanoid that is not a player or friendly NPC
+                for _, desc in ipairs(workspace:GetDescendants()) do
+                    if desc:IsA("Model") and desc:FindFirstChildOfClass("Humanoid") then
+                        local isPlayer = false
+                        for _, p in ipairs(game.Players:GetPlayers()) do
+                            if p.Character == desc then
+                                isPlayer = true
+                                break
+                            end
+                        end
+                        if not isPlayer and desc.Name ~= "Child" and desc.Name ~= "KidsNPC" and desc.Name ~= "CryWoman_C" and desc.Name ~= "OohiromaKids" and desc.Name ~= "NPC" then
+                            return desc
+                        end
+                    end
+                end
+                return nil
+            end
+
             local enemyFollowLoop
             enemyFollowLoop = game:GetService("RunService").Heartbeat:Connect(function()
                 local character = game.Players.LocalPlayer.Character
@@ -554,13 +606,7 @@ MainTab:Toggle({
                     return -- Silently stop if Ofuda is not held
                 end
                 
-                -- Check if enemy client exists in the specified path
-                local currentEnemy = workspace.Client.Enemy.ClientEnemy:FindFirstChild("EnemyModel")
-                
-                -- If not found in main path, try to find elsewhere as fallback
-                if not currentEnemy then
-                    currentEnemy = workspace.Server.Enemy:FindFirstChild("Enemy") or workspace:FindFirstChild("EnemyModel", true) or workspace:FindFirstChild("EnemyModels", true)
-                end
+                local currentEnemy = findEnemy()
                 
                 -- Teleport to enemy automatically
                 if currentEnemy then
@@ -681,12 +727,6 @@ MainTab:Toggle({
             getgenv().EnemyFollowLoop = enemyFollowLoop
             
         else
-            -- Disable teleport to enemy
-            if getgenv().EnemyFollowLoop then
-                getgenv().EnemyFollowLoop:Disconnect()
-                getgenv().EnemyFollowLoop = nil
-            end
-            
             notify{
                 Title = "Follow Enemy",
                 Content = "Enemy following deactivated",
@@ -1839,6 +1879,280 @@ MainTab:Button({
             notify{ Title = "Stage 7 Complete", Content = "Ofuda equipped. Stage 7 auto-completion complete!", Duration = 3 }
         else
             notify{ Title = "Stage 7 Complete", Content = "Auto-completion finished!", Duration = 3 }
+        end
+    end
+})
+
+-- Stage 8 Completion
+MainTab:Section({ Title = "Stage 8 Completion" })
+
+MainTab:Button({
+    Title = "Auto Complete Stage 8",
+    Desc = "Collect Warifu, unlock Oohiroma, solve cushions, dishes, plates, and get Ofuda",
+    Callback = function()
+        local player = game.Players.LocalPlayer
+        local character = player.Character
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+
+        if not (character and humanoid and rootPart) then
+            notify{ Title = "Failed", Content = "Player character not found", Duration = 3 }
+            return
+        end
+
+        local function findItem(itemName)
+            local item = workspace.Server.SpawnedItems:FindFirstChild(itemName)
+            if not item then
+                for _, desc in ipairs(workspace:GetDescendants()) do
+                    if desc.Name == itemName and (desc:IsA("Model") or desc:IsA("BasePart")) then
+                        if not desc:IsDescendantOf(player.Character) and not desc:IsDescendantOf(player.Backpack) then
+                            item = desc
+                            break
+                        end
+                    end
+                end
+            end
+            return item
+        end
+
+        local function pickupItem(item)
+            if not item then return false end
+            for i = 1, 10 do
+                if not item:IsDescendantOf(workspace) then return true end
+                rootPart.CFrame = item:GetPivot() + Vector3.new(0, 2, 0)
+                task.wait(0.1)
+                local prompt = item:FindFirstChildOfClass("ProximityPrompt") or item:FindFirstChildWhichIsA("ProximityPrompt", true)
+                if prompt then
+                    if fireproximityprompt then
+                        fireproximityprompt(prompt)
+                    else
+                        prompt:InputHoldBegin()
+                        task.wait(prompt.HoldDuration + 0.05)
+                        prompt:InputHoldEnd()
+                    end
+                end
+                task.wait(0.1)
+            end
+            return not item:IsDescendantOf(workspace)
+        end
+
+        -- Step 1: Collect Wooden Key (Warifu)
+        notify{ Title = "Stage 8", Content = "Searching for Wooden Key (Warifu)...", Duration = 2 }
+        local warifu = findItem("Warifu")
+        if warifu then
+            pickupItem(warifu)
+        end
+
+        -- Equip Warifu
+        local backpackWarifu = player.Backpack:FindFirstChild("Warifu")
+        if backpackWarifu then
+            backpackWarifu.Parent = character
+            task.wait(0.2)
+        end
+
+        -- Step 2: Unlock Oohiroma
+        local lockModel = nil
+        local roomsFolder = workspace.Server:FindFirstChild("MapGenerated")
+        roomsFolder = roomsFolder and roomsFolder:FindFirstChild("Rooms")
+        
+        if roomsFolder then
+            for _, room in ipairs(roomsFolder:GetChildren()) do
+                local lock = room:FindFirstChild("Lock", true)
+                if lock then
+                    lockModel = lock
+                    break
+                end
+            end
+        end
+
+        if lockModel then
+            local unlockEvent = game:GetService("ReplicatedStorage"):WaitForChild("Stage8OohiromaUnlockEvent")
+            unlockEvent:FireServer(lockModel)
+            notify{ Title = "Stage 8", Content = "Oohiroma unlocked!", Duration = 2 }
+            task.wait(1.0)
+        else
+            notify{ Title = "Stage 8", Content = "Lock not found or already unlocked", Duration = 2 }
+        end
+
+        -- Step 3: Solve Cushion Rotation Puzzles
+        notify{ Title = "Stage 8", Content = "Solving Cushion rotation puzzles...", Duration = 2 }
+        if roomsFolder then
+            for _, room in ipairs(roomsFolder:GetChildren()) do
+                for _, desc in ipairs(room:GetDescendants()) do
+                    if desc.Name == "Meshes/Cushion" and desc:IsA("BasePart") then
+                        local prompt = desc:FindFirstChildOfClass("ProximityPrompt") or desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        if prompt and prompt.Enabled then
+                            local gimmickModel = desc.Parent
+                            local index = tonumber(string.match(gimmickModel.Name, "%d+"))
+                            if index then
+                                local rotateEvent = game:GetService("ReplicatedStorage"):WaitForChild("Stage8CushionRotateEvent")
+                                local attempts = 0
+                                while math.abs(math.round(desc.Orientation.Y) - 90) >= 1 and attempts < 15 do
+                                    rotateEvent:FireServer(index)
+                                    task.wait(0.1)
+                                    attempts = attempts + 1
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Step 4: Solve Dish Placing Puzzles
+        notify{ Title = "Stage 8", Content = "Solving Dish placing puzzles...", Duration = 2 }
+        if roomsFolder then
+            for _, room in ipairs(roomsFolder:GetChildren()) do
+                for _, gimmick in ipairs(room:GetChildren()) do
+                    if string.match(gimmick.Name, "^Gimmick%d+$") then
+                        local missingPlate = gimmick:GetAttribute("MissingPlate")
+                        local index = tonumber(string.match(gimmick.Name, "%d+"))
+                        local interactPoint = gimmick:FindFirstChild("InteractPoint")
+                        local prompt = interactPoint and (interactPoint:FindFirstChildOfClass("ProximityPrompt") or interactPoint:FindFirstChildWhichIsA("ProximityPrompt", true))
+                        
+                        if missingPlate and index and prompt and prompt.Enabled then
+                            local requiredDish = (missingPlate == "Plate4") and "Tyawan" or "Shiruwan"
+                            local dishItem = findItem(requiredDish)
+                            if dishItem then
+                                pickupItem(dishItem)
+                            end
+                            local backpackDish = player.Backpack:FindFirstChild(requiredDish)
+                            if backpackDish then
+                                backpackDish.Parent = character
+                                task.wait(0.2)
+                            end
+                            
+                            local placeEvent = game:GetService("ReplicatedStorage"):WaitForChild("Stage8DishPlaceEvent")
+                            placeEvent:FireServer(index)
+                            task.wait(0.5)
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Step 5: Solve Plate Swapping Puzzle
+        notify{ Title = "Stage 8", Content = "Solving Plate swapping puzzle...", Duration = 2 }
+        local activeRoom = nil
+        local defaultRoom = nil
+
+        if roomsFolder then
+            for i = 1, 5 do
+                local gimmick = nil
+                for _, room in ipairs(roomsFolder:GetChildren()) do
+                    gimmick = room:FindFirstChild("Gimmick" .. i)
+                    if gimmick then break end
+                end
+                
+                if gimmick then
+                    local p1 = gimmick:FindFirstChild("Plate1")
+                    local p2 = gimmick:FindFirstChild("Plate2")
+                    local p3 = gimmick:FindFirstChild("Plate3")
+                    local p4 = gimmick:FindFirstChild("Plate4")
+                    local p5 = gimmick:FindFirstChild("Plate5")
+                    if p1 and p2 and p3 and p4 and p5 then
+                        local interactPoint = gimmick:FindFirstChild("InteractPoint")
+                        local prompt = interactPoint and (interactPoint:FindFirstChildOfClass("ProximityPrompt") or interactPoint:FindFirstChildWhichIsA("ProximityPrompt", true))
+                        if prompt and prompt.Enabled then
+                            activeRoom = gimmick
+                        else
+                            defaultRoom = gimmick
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Fallback default room search
+        if activeRoom and not defaultRoom then
+            for i = 1, 5 do
+                local gimmick = nil
+                for _, room in ipairs(roomsFolder:GetChildren()) do
+                    gimmick = room:FindFirstChild("Gimmick" .. i)
+                    if gimmick then break end
+                end
+                if gimmick and gimmick ~= activeRoom then
+                    local p1 = gimmick:FindFirstChild("Plate1")
+                    local p5 = gimmick:FindFirstChild("Plate5")
+                    if p1 and p5 then
+                        defaultRoom = gimmick
+                        break
+                    end
+                end
+            end
+        end
+
+        if activeRoom and defaultRoom then
+            local targetPositions = {}
+            for i = 1, 5 do
+                local plate = defaultRoom:FindFirstChild("Plate" .. i)
+                targetPositions[i] = plate:GetPivot().Position
+            end
+
+            local currentSlots = {}
+            for i = 1, 5 do
+                local plate = activeRoom:FindFirstChild("Plate" .. i)
+                local platePos = plate:GetPivot().Position
+                local bestSlot = 1
+                local minDist = math.huge
+                for k = 1, 5 do
+                    local dist = (platePos - targetPositions[k]).Magnitude
+                    if dist < minDist then
+                        minDist = dist
+                        bestSlot = k
+                    end
+                end
+                currentSlots[i] = bestSlot
+            end
+
+            local function getPlateAtSlot(k)
+                for i = 1, 5 do
+                    if currentSlots[i] == k then
+                        return i
+                    end
+                end
+                return nil
+            end
+
+            local swapEvent = game:GetService("ReplicatedStorage"):WaitForChild("Stage8PlateSwapEvent")
+            for k = 1, 5 do
+                local plateIndex = getPlateAtSlot(k)
+                if plateIndex and plateIndex ~= k then
+                    local currentSlotOfPlateK = currentSlots[k]
+                    swapEvent:FireServer(plateIndex, k)
+                    currentSlots[plateIndex] = currentSlotOfPlateK
+                    currentSlots[k] = k
+                    task.wait(0.5)
+                end
+            end
+        else
+            notify{ Title = "Stage 8", Content = "Could not locate active/default plates room", Duration = 2 }
+        end
+
+        -- Step 6: Collect spawned Ofuda
+        notify{ Title = "Stage 8", Content = "Waiting for Ofuda to spawn...", Duration = 2 }
+        local ofuda = nil
+        for i = 1, 30 do
+            ofuda = findItem("Ofuda") or findItem("Talisman")
+            if ofuda then break end
+            task.wait(0.5)
+        end
+
+        if ofuda then
+            notify{ Title = "Stage 8", Content = "Ofuda spawned! Teleporting to collect...", Duration = 2 }
+            pickupItem(ofuda)
+        else
+            notify{ Title = "Stage 8", Content = "Ofuda not found in workspace", Duration = 2 }
+        end
+
+        -- Equip Ofuda
+        local ofudaTool = player.Backpack:FindFirstChild("Ofuda") or player.Backpack:FindFirstChild("Talisman")
+        if ofudaTool then
+            ofudaTool.Parent = character
+            task.wait(0.2)
+            notify{ Title = "Stage 8 Complete", Content = "Ofuda equipped. Stage 8 complete!", Duration = 3 }
+        else
+            notify{ Title = "Stage 8 Complete", Content = "Auto-completion finished!", Duration = 3 }
         end
     end
 })
