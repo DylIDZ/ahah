@@ -1540,221 +1540,305 @@ MainTab:Section({ Title = "Stage 7 Completion" })
 
 MainTab:Button({
     Title = "Auto Complete Stage 7",
-    Desc = "Bypass all Stage 7 puzzles automatically",
+    Desc = "Solve chest, pick up key, unlock kids room, interact, and secure Ofuda",
     Callback = function()
         local player = game.Players.LocalPlayer
         local character = player.Character
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
         local rootPart = character and character:FindFirstChild("HumanoidRootPart")
 
-        if not character or not rootPart then
-            notify{
-                Title = "Failed",
-                Content = "Player character not found",
-                Duration = 3
-            }
+        if not (character and humanoid and rootPart) then
+            notify{ Title = "Failed", Content = "Player character not found", Duration = 3 }
             return
         end
 
-        -- Step 1: Read combination from Workspace Attributes
-        local EtoData = require(game:GetService("ReplicatedStorage"):WaitForChild("GameConfig"):WaitForChild("EtoData"))
-        local combination = {}
-        for _, descendant in ipairs(workspace:GetDescendants()) do
-            local etoName = descendant:GetAttribute("HintEtoName")
-            local orderNum = descendant:GetAttribute("HintOrderNumber")
-            if etoName and orderNum then
-                for index, name in pairs(EtoData) do
-                    if name == etoName then
-                        combination[orderNum] = index
-                        break
+        local EtoData = nil
+        pcall(function()
+            EtoData = require(game:GetService("ReplicatedStorage"):WaitForChild("GameConfig"):WaitForChild("EtoData"))
+        end)
+
+        local function getZodiacIndex(identifier)
+            if not identifier then return 1 end
+            local cleanId = tostring(identifier):lower()
+            local digits = string.match(cleanId, "%d+")
+            
+            if EtoData then
+                for i = 1, 12 do
+                    local data = EtoData[i]
+                    if data then
+                        if typeof(data) == "table" then
+                            if data.Name and tostring(data.Name):lower() == cleanId then return i end
+                            if data.name and tostring(data.name):lower() == cleanId then return i end
+                            for k, v in pairs(data) do
+                                if typeof(v) == "string" then
+                                    local vDigits = string.match(v, "%d+")
+                                    if digits and vDigits and digits == vDigits then return i end
+                                end
+                            end
+                        elseif typeof(data) == "string" then
+                            if data:lower() == cleanId then return i end
+                            local dataDigits = string.match(data, "%d+")
+                            if digits and dataDigits and digits == dataDigits then return i end
+                        end
+                    end
+                end
+                
+                -- Dictionary fallback
+                for key, data in pairs(EtoData) do
+                    local keyStr = tostring(key):lower()
+                    if keyStr == cleanId then
+                        if typeof(data) == "number" then return data end
+                        if typeof(data) == "table" and data.Index then return data.Index end
+                        if typeof(data) == "table" and data.index then return data.index end
+                    end
+                    if typeof(data) == "table" then
+                        if data.Name and tostring(data.Name):lower() == cleanId then
+                            if typeof(key) == "number" then return key end
+                            if data.Index then return data.Index end
+                            if data.index then return data.index end
+                        end
+                        for k, v in pairs(data) do
+                            if typeof(v) == "string" then
+                                local vDigits = string.match(v, "%d+")
+                                if digits and vDigits and digits == vDigits then
+                                    if typeof(key) == "number" then return key end
+                                    if data.Index then return data.Index end
+                                    if data.index then return data.index end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            
+            local standardZodiac = {
+                rat = 1, mouse = 1, ox = 2, cow = 2, tiger = 3, rabbit = 4, hare = 4,
+                dragon = 5, snake = 6, horse = 7, sheep = 8, goat = 8, ram = 8,
+                monkey = 9, rooster = 10, chicken = 10, bird = 10, dog = 11, pig = 12, boar = 12
+            }
+            return standardZodiac[cleanId] or 1
+        end
+
+        local function findItem(itemName)
+            local item = workspace.Server.SpawnedItems:FindFirstChild(itemName)
+            if not item then
+                for _, desc in ipairs(workspace:GetDescendants()) do
+                    if desc.Name == itemName and (desc:IsA("Model") or desc:IsA("BasePart")) then
+                        if not desc:IsDescendantOf(player.Character) and not desc:IsDescendantOf(player.Backpack) then
+                            item = desc
+                            break
+                        end
+                    end
+                end
+            end
+            return item
+        end
+
+        local function pickupItem(item)
+            if not item then return false end
+            for i = 1, 10 do
+                if not item:IsDescendantOf(workspace) then return true end
+                rootPart.CFrame = item:GetPivot() + Vector3.new(0, 2, 0)
+                task.wait(0.1)
+                local prompt = item:FindFirstChildOfClass("ProximityPrompt") or item:FindFirstChildWhichIsA("ProximityPrompt", true)
+                if prompt then
+                    if fireproximityprompt then
+                        fireproximityprompt(prompt)
+                    else
+                        prompt:InputHoldBegin()
+                        task.wait(prompt.HoldDuration + 0.05)
+                        prompt:InputHoldEnd()
+                    end
+                end
+                task.wait(0.1)
+            end
+            return not item:IsDescendantOf(workspace)
+        end
+
+        -- Find DialShelf / Chest model
+        local kinkoModel = nil
+        for _, desc in ipairs(workspace:GetDescendants()) do
+            if desc.Name == "DialShelf" then
+                kinkoModel = desc.Parent
+                break
+            end
+        end
+
+        if not kinkoModel then
+            notify{ Title = "Failed", Content = "DialShelf / Chest model not found", Duration = 3 }
+            return
+        end
+
+        notify{ Title = "Stage 7", Content = "Scanning rooms for Eto clues...", Duration = 2 }
+
+        -- Scan map for Eto and EtoNum pairs
+        local code = {}
+        local onsenEto = nil
+        
+        local roomsFolder = workspace.Server:FindFirstChild("MapGenerated")
+        roomsFolder = roomsFolder and roomsFolder:FindFirstChild("Rooms")
+        
+        if roomsFolder then
+            for _, room in ipairs(roomsFolder:GetChildren()) do
+                for _, desc in ipairs(room:GetDescendants()) do
+                    local etoPart = desc:FindFirstChild("Eto")
+                    local etoNumPart = desc:FindFirstChild("EtoNum")
+                    if etoPart and etoNumPart then
+                        local etoLabel = etoPart:FindFirstChildWhichIsA("ImageLabel", true)
+                        local numLabel = etoNumPart:FindFirstChildWhichIsA("ImageLabel", true)
+                        
+                        if etoLabel and numLabel then
+                            if etoLabel.Name ~= "ImageLabel" and numLabel.Name ~= "ImageLabel" then
+                                local animalName = etoLabel.Name
+                                local orderNum = tonumber(numLabel.Name)
+                                if orderNum then
+                                    code[orderNum] = animalName
+                                end
+                            else
+                                onsenEto = etoLabel.Image
+                            end
+                        end
                     end
                 end
             end
         end
 
-        if #combination < 3 then
-            notify{
-                Title = "Failed",
-                Content = "Could not find all Stage 7 clues in workspace",
-                Duration = 3
-            }
-            return
-        end
-
-        -- Step 2: Locate Kinko (Safe) and open it
-        local kinkoModel = nil
-        for _, descendant in ipairs(workspace:GetDescendants()) do
-            if descendant.Name == "DialShelf" or descendant.Name == "KeySpawnPoint" then
-                kinkoModel = descendant.Parent
-                break
+        -- Resolve Onsen Room animal name and remaining index
+        if onsenEto then
+            local onsenAnimal = nil
+            if EtoData then
+                local digits = string.match(onsenEto, "%d+")
+                for i = 1, 12 do
+                    local data = EtoData[i]
+                    if typeof(data) == "table" and data.Name and data.Image then
+                        local dataDigits = string.match(tostring(data.Image), "%d+")
+                        if digits and dataDigits and digits == dataDigits then
+                            onsenAnimal = data.Name
+                            break
+                        end
+                    end
+                end
             end
-        end
-        if not kinkoModel then
-            kinkoModel = workspace:FindFirstChild("Kinko", true)
-        end
-        if not kinkoModel then
-            notify{
-                Title = "Failed",
-                Content = "Kinko (Safe) model not found",
-                Duration = 3
-            }
-            return
-        end
-
-        notify{
-            Title = "Stage 7",
-            Content = "Opening Chest (Kinko) with code: " .. table.concat(combination, "-"),
-            Duration = 3
-        }
-        game:GetService("ReplicatedStorage").Stage7EtoDialEvent:FireServer(combination, kinkoModel)
-        task.wait(1.5)
-
-        -- Step 3: Locate and pick up KidsRoomKey / Key
-        local keyTool = nil
-        for i = 1, 30 do
-            keyTool = workspace.Server.SpawnedItems:FindFirstChild("KidsRoomKey") or 
-                      workspace.Server.SpawnedItems:FindFirstChild("Key") or
-                      workspace:FindFirstChild("KidsRoomKey", true) or
-                      workspace:FindFirstChild("Key", true)
-            if keyTool and keyTool:IsA("Tool") then
-                break
+            
+            onsenAnimal = onsenAnimal or onsenEto
+            
+            local usedNums = {}
+            for i = 1, 3 do
+                if code[i] then usedNums[i] = true end
             end
-            task.wait(0.2)
-        end
-        if not keyTool then
-            notify{
-                Title = "Failed",
-                Content = "KidsRoomKey / Key not found",
-                Duration = 3
-            }
-            return
-        end
-
-        rootPart.CFrame = CFrame.new(keyTool:GetPivot().Position + Vector3.new(0, 2, 0))
-        task.wait(0.2)
-
-        local prompt = keyTool:FindFirstChildOfClass("ProximityPrompt") or keyTool:FindFirstChildWhichIsA("ProximityPrompt", true)
-        if prompt then
-            for i = 1, 5 do
-                fireproximityprompt(prompt)
-                task.wait(0.1)
-                if keyTool.Parent == player.Backpack or keyTool.Parent == character then
+            local remainingNum = 1
+            for i = 1, 3 do
+                if not usedNums[i] then
+                    remainingNum = i
                     break
                 end
             end
+            code[remainingNum] = onsenAnimal
         end
 
-        local hasKey = player.Backpack:FindFirstChild("KidsRoomKey") or character:FindFirstChild("KidsRoomKey") or
-                       player.Backpack:FindFirstChild("Key") or character:FindFirstChild("Key")
-        if not hasKey then
-            notify{
-                Title = "Warning",
-                Content = "Could not collect key automatically, please pick it up manually",
-                Duration = 3
-            }
-            return
-        end
-
-        -- Equip the key
-        local keyInInv = player.Backpack:FindFirstChild("KidsRoomKey") or player.Backpack:FindFirstChild("Key")
-        if keyInInv then
-            character:FindFirstChildOfClass("Humanoid"):EquipTool(keyInInv)
-            task.wait(0.3)
-        end
-
-        -- Step 4: Unlock Kids Room Lock
-        local lockModel = workspace:FindFirstChild("Lock", true)
-        if not lockModel then
-            notify{
-                Title = "Failed",
-                Content = "Lock for Kids Room not found",
-                Duration = 3
-            }
-            return
-        end
-
-        rootPart.CFrame = CFrame.new(lockModel:GetPivot().Position + Vector3.new(0, 0, 3))
-        task.wait(0.2)
-        notify{
-            Title = "Stage 7",
-            Content = "Unlocking Kids Room...",
-            Duration = 2
+        -- Convert to zodiac indices
+        local dialValues = {
+            getZodiacIndex(code[1]),
+            getZodiacIndex(code[2]),
+            getZodiacIndex(code[3])
         }
-        game:GetService("ReplicatedStorage").Stage7KidsRoomUnlockEvent:FireServer(lockModel)
+
+        local codeText = string.format("%s (%d) - %s (%d) - %s (%d)", 
+            tostring(code[1] or "Unknown"), dialValues[1],
+            tostring(code[2] or "Unknown"), dialValues[2],
+            tostring(code[3] or "Unknown"), dialValues[3]
+        )
+        notify{ Title = "Eto Code Found", Content = codeText, Duration = 5 }
+
+        -- Submit code to Dial Shelf
+        local dialEvent = game:GetService("ReplicatedStorage"):WaitForChild("Stage7EtoDialEvent")
+        dialEvent:FireServer(dialValues, kinkoModel)
+        notify{ Title = "Stage 7", Content = "Combination submitted. Waiting for key...", Duration = 2 }
         task.wait(1.0)
 
-        -- Step 5: Interact with NPC to spawn Ofuda
-        local npcModel = workspace:FindFirstChild("KidsNPC", true) or 
-                         workspace:FindFirstChild("Child", true) or 
-                         workspace:FindFirstChild("CryWoman_C", true)
-        if not npcModel then
-            notify{
-                Title = "Failed",
-                Content = "Kids NPC not found",
-                Duration = 3
-            }
-            return
-        end
-
-        rootPart.CFrame = CFrame.new(npcModel:GetPivot().Position + Vector3.new(0, 0, 3))
-        task.wait(0.2)
-        notify{
-            Title = "Stage 7",
-            Content = "Triggering NPC to spawn Ofuda...",
-            Duration = 2
-        }
-        game:GetService("ReplicatedStorage").Stage7KidsInteractEvent:FireServer(npcModel)
-        task.wait(1.5)
-
-        -- Step 6: Locate and collect Ofuda
-        local ofuda = nil
-        for i = 1, 30 do
-            ofuda = workspace.Server.SpawnedItems:FindFirstChild("Ofuda") or 
-                    workspace.Server.SpawnedItems:FindFirstChild("Ofuda Onya") or
-                    workspace.Server.SpawnedItems:FindFirstChild("Talisman") or
-                    workspace:FindFirstChild("Ofuda", true) or
-                    workspace:FindFirstChild("Talisman", true)
-            if ofuda and ofuda:IsA("Tool") then
-                break
+        -- Find and pick up the KidsRoomKey
+        local key = findItem("KidsRoomKey") or findItem("Key")
+        if key then
+            notify{ Title = "Stage 7", Content = "Key found! Teleporting to pick up...", Duration = 2 }
+            if pickupItem(key) then
+                notify{ Title = "Stage 7", Content = "Key collected!", Duration = 2 }
             end
+        else
+            notify{ Title = "Stage 7", Content = "Key not found in workspace", Duration = 2 }
+        end
+        task.wait(0.5)
+
+        -- Equip the key
+        local backpackKey = player.Backpack:FindFirstChild("KidsRoomKey") or player.Backpack:FindFirstChild("Key")
+        if backpackKey then
+            backpackKey.Parent = character
             task.wait(0.2)
         end
-        if not ofuda then
-            notify{
-                Title = "Failed",
-                Content = "Ofuda not found",
-                Duration = 3
-            }
-            return
-        end
 
-        rootPart.CFrame = CFrame.new(ofuda:GetPivot().Position + Vector3.new(0, 2, 0))
-        task.wait(0.2)
-        local ofudaPrompt = ofuda:FindFirstChildOfClass("ProximityPrompt") or ofuda:FindFirstChildWhichIsA("ProximityPrompt", true)
-        if ofudaPrompt then
-            for i = 1, 5 do
-                fireproximityprompt(ofudaPrompt)
-                task.wait(0.1)
-                if ofuda.Parent == player.Backpack or ofuda.Parent == character then
+        -- Find the lock and unlock Kids Room
+        local lockModel = nil
+        if roomsFolder then
+            for _, room in ipairs(roomsFolder:GetChildren()) do
+                local lock = room:FindFirstChild("Lock", true)
+                if lock then
+                    lockModel = lock
                     break
                 end
             end
         end
 
-        -- Equip Ofuda
-        local ofudaInInv = player.Backpack:FindFirstChildWhichIsA("Tool")
-        if ofudaInInv and (string.match(ofudaInInv.Name:lower(), "ofuda") or string.match(ofudaInInv.Name:lower(), "talisman")) then
-            character:FindFirstChildOfClass("Humanoid"):EquipTool(ofudaInInv)
-            notify{
-                Title = "Stage 7 Complete",
-                Content = "Stage 7 completed successfully! Ofuda equipped.",
-                Duration = 5
-            }
+        if lockModel then
+            local unlockEvent = game:GetService("ReplicatedStorage"):WaitForChild("Stage7KidsRoomUnlockEvent")
+            unlockEvent:FireServer(lockModel)
+            notify{ Title = "Stage 7", Content = "Kids room unlocked!", Duration = 2 }
+            task.wait(1.0)
         else
-            notify{
-                Title = "Stage 7 Complete",
-                Content = "Stage 7 steps finished, please equip Ofuda manually",
-                Duration = 5
-            }
+            notify{ Title = "Stage 7", Content = "Lock model not found or already unlocked", Duration = 2 }
+        end
+
+        -- Find and interact with Kids NPC
+        local kidsNpc = nil
+        if roomsFolder then
+            for _, room in ipairs(roomsFolder:GetChildren()) do
+                for _, desc in ipairs(room:GetDescendants()) do
+                    if desc.Name == "KidsNPC" or desc.Name == "Child" or desc.Name == "CryWoman_C" then
+                        kidsNpc = desc
+                        break
+                    end
+                end
+                if kidsNpc then break end
+            end
+        end
+
+        if kidsNpc then
+            local interactEvent = game:GetService("ReplicatedStorage"):WaitForChild("Stage7KidsInteractEvent")
+            interactEvent:FireServer(kidsNpc)
+            notify{ Title = "Stage 7", Content = "Interacted with Kids NPC! Waiting for Ofuda...", Duration = 2 }
+            task.wait(2.0)
+        else
+            notify{ Title = "Stage 7", Content = "Kids NPC not found", Duration = 2 }
+        end
+
+        -- Find and pick up Ofuda
+        local ofuda = findItem("Ofuda") or findItem("Talisman")
+        if ofuda then
+            notify{ Title = "Stage 7", Content = "Ofuda found! Teleporting to pick up...", Duration = 2 }
+            if pickupItem(ofuda) then
+                notify{ Title = "Stage 7", Content = "Ofuda collected!", Duration = 2 }
+            end
+        else
+            notify{ Title = "Stage 7", Content = "Ofuda not found in workspace", Duration = 2 }
+        end
+        task.wait(0.5)
+
+        -- Equip Ofuda
+        local ofudaTool = player.Backpack:FindFirstChild("Ofuda") or player.Backpack:FindFirstChild("Talisman")
+        if ofudaTool then
+            ofudaTool.Parent = character
+            task.wait(0.2)
+            notify{ Title = "Stage 7 Complete", Content = "Ofuda equipped. Stage 7 auto-completion complete!", Duration = 3 }
+        else
+            notify{ Title = "Stage 7 Complete", Content = "Auto-completion finished!", Duration = 3 }
         end
     end
 })
